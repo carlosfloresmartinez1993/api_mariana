@@ -1,0 +1,41 @@
+# Blueprint de Render: un servicio web (API + frontend) y una base de datos PostgreSQL.
+# En Render: New → Blueprint → elige este repositorio.
+services:
+  - type: web
+    name: control-empresas
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    # Solo despliega cuando pasan las pruebas de GitHub Actions (.github/workflows/ci.yml)
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: control-empresas-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+      - key: DOCS_ENABLED
+        value: "false"
+      - key: TIMEZONE
+        value: America/Tijuana
+      # Render pone un proxy delante: confiar en él para obtener la IP real (límite de intentos de login).
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
+      # Superusuario: se crea al arrancar si no existe. Render los pide al crear el Blueprint.
+      - key: SUPERUSUARIO_CORREO
+        sync: false
+      - key: SUPERUSUARIO_PASSWORD
+        sync: false
+      - key: SUPERUSUARIO_NOMBRE
+        value: Superusuario
+
+databases:
+  - name: control-empresas-db
+    plan: free
+    databaseName: empresas
+    user: empresas

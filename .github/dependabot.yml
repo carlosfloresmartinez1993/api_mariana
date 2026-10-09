@@ -1,0 +1,39 @@
+# Dependabot revisa cada semana si hay versiones nuevas de las dependencias y abre
+# pull requests para actualizarlas. Cada PR pasa por las pruebas de CI antes de unirse.
+# Las actualizaciones de SEGURIDAD llegan de inmediato si están activadas en
+# GitHub → Settings → Code security → Dependabot security updates.
+version: 2
+updates:
+  # Backend (Python): requirements.txt con versiones exactas
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      backend-menores:
+        update-types: [minor, patch]
+
+  # Frontend (npm): package.json / package-lock.json
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      frontend-menores:
+        update-types: [minor, patch]
+
+  # Acciones usadas en .github/workflows
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+  # Imágenes base de Docker (python y node)
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly

@@ -1,0 +1,14 @@
+.git
+.idea
+.claude
+docs
+*.docx
+**/.env
+**/.env.local
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+backend/tests
