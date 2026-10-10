@@ -11,6 +11,16 @@ frontend/   aplicación web (React + TypeScript)
 Dockerfile  imagen única: API en /api y frontend en /
 ```
 
+## Qué hace
+
+- **Empresas** (solo con nombre) con **cuentas de banco** (varias) y **cajas de efectivo** (una por moneda), en MXN o USD. La moneda se fija al crear la cuenta y no cambia. Las cuentas empiezan en cero: no hay saldo inicial, el dinero que ya había se registra como una entrada de un proyecto («Saldo de apertura»).
+- **Proyectos** (solo con nombre), en una o varias empresas. La empresa se vincula sola al capturar.
+- **Entradas** a un proyecto: empresa, cuenta, transferencia o efectivo y un % de gasto opcional distinto en cada una. El gasto se lo queda el proveedor: a la cuenta llega el neto.
+- **Salidas** de un proyecto desde una cuenta de una empresa. El dinero de un proyecto queda en la empresa donde entró: la salida no puede rebasar el saldo del proyecto **en esa empresa y moneda**, ni el de la cuenta.
+- **Sin traspasos**: para llevar efectivo de la caja al banco se registra una salida de la caja y una entrada sin % al banco, del mismo proyecto.
+- Nada se borra: los movimientos se **anulan con motivo**.
+- **Reportes** con periodo opcional (sin periodo = todo), en pantalla, Excel, PDF o CSV: saldo por proyecto, historial de un proyecto, saldo por proyecto y empresa, saldo por cuenta (con totales de cajas y bancos), cuadre (por empresa y moneda: saldo de las cuentas = saldo de los proyectos), gastos acumulados / por proyecto / por empresa, ingresos (neto) por proyecto / por empresa.
+
 ## Usuarios y roles
 
 | Rol | Puede |
@@ -54,6 +64,8 @@ npm run dev                                 # http://localhost:5173 (proxy /api 
 ```
 
 Las bases `empresas` y `empresas_test` deben existir (`CREATE DATABASE empresas;`).
+
+**Datos de demostración**: `.venv\Scripts\python -m app.seed` carga empresas, cuentas, proyectos y movimientos (solo si la base no tiene empresas) y los usuarios `admin@demo.local`, `ana@demo.local` y `luis@demo.local`, con la contraseña definida en `DEMO_PASSWORD` de [backend/app/seed.py](backend/app/seed.py). En Docker se activa con `SEED_DEMO=true`. Para empezar en limpio: borrar y volver a crear la base, y `alembic upgrade head`.
 
 ## Dependencias
 

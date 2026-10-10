@@ -5,6 +5,12 @@ import { Layout } from "./components/Layout";
 import { Cargando } from "./components/ui";
 import Login from "./pages/Login";
 import Inicio from "./pages/Inicio";
+import Empresas from "./pages/Empresas";
+import EmpresaDetalle from "./pages/EmpresaDetalle";
+import Proyectos from "./pages/Proyectos";
+import ProyectoDetalle from "./pages/ProyectoDetalle";
+import { Entradas, Salidas } from "./pages/Movimientos";
+import Reportes from "./pages/Reportes";
 import Usuarios from "./pages/Usuarios";
 import Bitacora from "./pages/Bitacora";
 import Perfil from "./pages/Perfil";
@@ -30,6 +36,13 @@ export default function App() {
         }
       >
         <Route index element={<Inicio />} />
+        <Route path="empresas" element={<Empresas />} />
+        <Route path="empresas/:id" element={<EmpresaDetalle />} />
+        <Route path="proyectos" element={<Proyectos />} />
+        <Route path="proyectos/:id" element={<ProyectoDetalle />} />
+        <Route path="entradas" element={<Entradas />} />
+        <Route path="salidas" element={<Salidas />} />
+        <Route path="reportes" element={<Reportes />} />
         <Route path="usuarios" element={<Protegida soloAdmin><Usuarios /></Protegida>} />
         <Route path="bitacora" element={<Protegida soloAdmin><Bitacora /></Protegida>} />
         <Route path="perfil" element={<Perfil />} />

@@ -9,6 +9,8 @@ interface Sesion {
   /** Administrador o superusuario. */
   esAdmin: boolean;
   esSuperusuario: boolean;
+  /** Un contador solo corrige lo que él registró; un administrador, todo. */
+  puedeCorregir: (registro: { creado_por: string }) => boolean;
   /** Mensaje para mostrar en el login cuando la sesión se cerró sola. */
   aviso: string | null;
   entrar: (correo: string, password: string) => Promise<void>;
@@ -65,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cargando,
       esAdmin: usuario?.rol === "admin" || usuario?.rol === "superusuario",
       esSuperusuario: usuario?.rol === "superusuario",
+      puedeCorregir: (registro: { creado_por: string }) =>
+        usuario?.rol === "admin" || usuario?.rol === "superusuario" || registro.creado_por === usuario?.id,
       aviso,
       entrar,
       salir,

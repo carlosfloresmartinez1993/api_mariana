@@ -26,6 +26,10 @@ certifi==2026.7.22
     # via
     #   httpcore
     #   httpx
+charset-normalizer==3.5.2
+    # via
+    #   -c requirements.txt
+    #   reportlab
 click==8.5.0
     # via
     #   -c requirements.txt
@@ -44,6 +48,10 @@ email-validator==2.3.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
+et-xmlfile==2.0.0
+    # via
+    #   -c requirements.txt
+    #   openpyxl
 fastapi==0.143.0
     # via
     #   -c requirements.txt
@@ -81,6 +89,10 @@ markupsafe==3.0.4
     # via
     #   -c requirements.txt
     #   mako
+openpyxl==3.1.5
+    # via
+    #   -c requirements.txt
+    #   -r requirements.in
 opentelemetry-api==1.45.1
     # via
     #   -c requirements.txt
@@ -90,6 +102,10 @@ packaging==26.3
     #   -c requirements.txt
     #   limits
     #   pytest
+pillow==12.3.0
+    # via
+    #   -c requirements.txt
+    #   reportlab
 pluggy==1.6.0
     # via pytest
 psycopg==3.3.6
@@ -136,6 +152,10 @@ pyyaml==6.0.3
     # via
     #   -c requirements.txt
     #   uvicorn
+reportlab==5.0.1
+    # via
+    #   -c requirements.txt
+    #   -r requirements.in
 slowapi==0.1.10
     # via
     #   -c requirements.txt

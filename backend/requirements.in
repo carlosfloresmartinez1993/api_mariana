@@ -14,3 +14,5 @@ bcrypt>=5.0
 PyJWT>=2.15
 slowapi>=0.1.10
 tzdata
+openpyxl>=3.1
+reportlab>=5.0

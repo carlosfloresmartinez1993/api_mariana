@@ -14,6 +14,11 @@ interface Enlace {
 
 const ENLACES: Enlace[] = [
   { a: "/", texto: "Inicio", icono: "inicio" },
+  { a: "/empresas", texto: "Empresas", icono: "empresas" },
+  { a: "/proyectos", texto: "Proyectos", icono: "proyectos" },
+  { a: "/entradas", texto: "Entradas", icono: "entradas" },
+  { a: "/salidas", texto: "Salidas", icono: "salidas" },
+  { a: "/reportes", texto: "Reportes", icono: "reportes" },
   { a: "/usuarios", texto: "Usuarios", icono: "usuarios", soloAdmin: true },
   { a: "/bitacora", texto: "Bitácora", icono: "bitacora", soloAdmin: true },
 ];

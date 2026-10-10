@@ -9,6 +9,27 @@ class Rol(StrEnum):
     CONTADOR = "contador"
 
 
+class Moneda(StrEnum):
+    MXN = "MXN"
+    USD = "USD"
+
+
+class TipoCuenta(StrEnum):
+    BANCO = "banco"
+    CAJA = "caja"
+
+
+class Forma(StrEnum):
+    """Cómo se movió el dinero. Transferencia → cuenta de banco; efectivo → caja."""
+
+    TRANSFERENCIA = "transferencia"
+    EFECTIVO = "efectivo"
+
+    @property
+    def tipo_cuenta(self) -> TipoCuenta:
+        return TipoCuenta.BANCO if self == Forma.TRANSFERENCIA else TipoCuenta.CAJA
+
+
 class AccionBitacora(StrEnum):
     """Catálogo cerrado de acciones de la bitácora. La entidad afectada va en su propia columna."""
 
@@ -20,6 +41,9 @@ class AccionBitacora(StrEnum):
     ACTIVAR = "ACTIVAR"
     DESACTIVAR = "DESACTIVAR"
     ANULAR = "ANULAR"
+    VINCULAR = "VINCULAR"
+    DESVINCULAR = "DESVINCULAR"
+    CAMBIO_SALDO_INICIAL = "CAMBIO_SALDO_INICIAL"
 
 
 def enum_columna(enum_cls: type[StrEnum], nombre: str, largo: int) -> SAEnum:

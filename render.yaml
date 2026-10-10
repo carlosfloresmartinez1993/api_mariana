@@ -33,6 +33,9 @@ services:
         sync: false
       - key: SUPERUSUARIO_NOMBRE
         value: Superusuario
+      # true = cargar los datos de demostración de app/seed.py (solo para demostraciones).
+      - key: SEED_DEMO
+        value: "false"
 
 databases:
   - name: control-empresas-db

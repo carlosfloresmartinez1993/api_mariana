@@ -8,6 +8,7 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import { cn } from "../lib/cn";
+import { dinero } from "../lib/format";
 
 // Interfaz en blanco y negro: el énfasis se logra con negro sólido, bordes y peso de la letra.
 
@@ -213,7 +214,7 @@ export function Vacio({ titulo, descripcion, accion }: { titulo: string; descrip
 // ------------------------------------------------------------------ tablas
 export function Tabla({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="min-w-full divide-y divide-neutral-200 text-sm">{children}</table>
     </div>
   );
@@ -334,4 +335,75 @@ export function Modal({
 
 export function PieModal({ children }: { children: ReactNode }) {
   return <div className="-mx-5 -mb-4 mt-5 flex justify-end gap-2 border-t border-neutral-200 bg-neutral-50 px-5 py-3">{children}</div>;
+}
+
+// ------------------------------------------------------------------ montos
+/** Monto con su moneda. Los negativos van entre paréntesis y en negritas (no hay color). */
+export function Monto({ valor, moneda, className }: { valor: string | number | null | undefined; moneda?: string; className?: string }) {
+  const negativo = Number(valor ?? 0) < 0;
+  return (
+    <span className={cn("tabular-nums whitespace-nowrap", negativo && "font-semibold", className)}>
+      {negativo ? `(${dinero(Math.abs(Number(valor)), moneda)})` : dinero(valor, moneda)}
+    </span>
+  );
+}
+
+/** Saldos de varias monedas, uno por línea; "—" si no hay. */
+export function Saldos({ saldos }: { saldos: { moneda: string; saldo: string }[] }) {
+  if (!saldos.length) return <span className="text-neutral-400">—</span>;
+  return (
+    <div className="space-y-0.5">
+      {saldos.map((s) => (
+        <div key={s.moneda}>
+          <Monto valor={s.saldo} moneda={s.moneda} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Interruptor de opciones excluyentes (p. ej. Transferencia / Efectivo). */
+export function Opciones<T extends string>({
+  valor,
+  opciones,
+  onCambiar,
+  deshabilitado,
+}: {
+  valor: T;
+  opciones: { valor: T; texto: string }[];
+  onCambiar: (v: T) => void;
+  deshabilitado?: boolean;
+}) {
+  return (
+    <div className="inline-flex rounded-md ring-1 ring-black" role="radiogroup">
+      {opciones.map((o, i) => (
+        <button
+          key={o.valor}
+          type="button"
+          role="radio"
+          aria-checked={valor === o.valor}
+          disabled={deshabilitado}
+          onClick={() => onCambiar(o.valor)}
+          className={cn(
+            "px-3.5 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50",
+            i === 0 && "rounded-l-md",
+            i === opciones.length - 1 && "rounded-r-md",
+            valor === o.valor ? "bg-black text-white" : "bg-white text-black hover:bg-neutral-100",
+          )}
+        >
+          {o.texto}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Dato de solo lectura: etiqueta pequeña y valor. */
+export function Dato({ etiqueta, children }: { etiqueta: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">{etiqueta}</p>
+      <div className="mt-0.5 text-sm text-black">{children}</div>
+    </div>
+  );
 }

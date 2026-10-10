@@ -12,6 +12,8 @@ anyio==4.15.1
     #   watchfiles
 bcrypt==5.0.0
     # via -r requirements.in
+charset-normalizer==3.5.2
+    # via reportlab
 click==8.5.0
     # via uvicorn
 deprecated==3.0.0
@@ -20,6 +22,8 @@ dnspython==2.9.0
     # via email-validator
 email-validator==2.3.0
     # via -r requirements.in
+et-xmlfile==2.0.0
+    # via openpyxl
 fastapi==0.143.0
     # via -r requirements.in
 h11==0.16.0
@@ -36,10 +40,14 @@ mako==1.4.3
     # via alembic
 markupsafe==3.0.4
     # via mako
+openpyxl==3.1.5
+    # via -r requirements.in
 opentelemetry-api==1.45.1
     # via fastapi
 packaging==26.3
     # via limits
+pillow==12.3.0
+    # via reportlab
 psycopg==3.3.6
     # via -r requirements.in
 psycopg-binary==3.3.6 ; implementation_name != 'pypy'
@@ -63,6 +71,8 @@ python-multipart==0.0.32
     # via -r requirements.in
 pyyaml==6.0.3
     # via uvicorn
+reportlab==5.0.1
+    # via -r requirements.in
 slowapi==0.1.10
     # via -r requirements.in
 sqlalchemy==2.1.4

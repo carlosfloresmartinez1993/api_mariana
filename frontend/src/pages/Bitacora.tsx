@@ -19,10 +19,10 @@ import {
 import { api } from "../lib/api";
 import { fechaHoraLocal } from "../lib/format";
 import { useFiltros } from "../lib/filtros";
-import { ACCIONES_BITACORA, type AccionBitacora, type Pagina, type RegistroBitacora, type Usuario } from "../lib/types";
+import { ACCIONES_BITACORA, ENTIDADES_BITACORA, type AccionBitacora, type Pagina, type RegistroBitacora, type Usuario } from "../lib/types";
 
 const LIMITE = 50;
-const CLAVES = ["usuario_id", "accion", "desde", "hasta"] as const;
+const CLAVES = ["usuario_id", "entidad", "accion", "desde", "hasta"] as const;
 
 /** Resumen de una línea del detalle (p. ej. el correo del usuario creado o la IP del inicio de sesión). */
 function resumen(r: RegistroBitacora): string {
@@ -31,6 +31,8 @@ function resumen(r: RegistroBitacora): string {
   if (typeof despues?.correo === "string") return despues.correo;
   if (typeof d.correo === "string") return d.correo;
   if (typeof d.motivo === "string") return d.motivo;
+  if (typeof d.empresa === "string") return d.proyecto ? `${d.empresa} ↔ ${d.proyecto}` : d.empresa;
+  if (typeof d.nombre === "string") return d.nombre;
   if (typeof d.ip === "string") return `IP ${d.ip}`;
   return "";
 }
@@ -55,12 +57,20 @@ export default function Bitacora() {
       <EncabezadoPagina titulo="Bitácora" descripcion="Todo lo que hace cada usuario, incluido el superusuario. No se puede modificar." />
 
       <Tarjeta className="mb-4 p-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Campo etiqueta="Usuario">
             {(id) => (
               <Select id={id} value={filtros.usuario_id} onChange={(e) => cambiar({ usuario_id: e.target.value })}>
                 <option value="">Todos</option>
                 {usuarios.data?.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+              </Select>
+            )}
+          </Campo>
+          <Campo etiqueta="Registro">
+            {(id) => (
+              <Select id={id} value={filtros.entidad} onChange={(e) => cambiar({ entidad: e.target.value })}>
+                <option value="">Todos</option>
+                {ENTIDADES_BITACORA.map((e) => <option key={e} value={e}>{e}</option>)}
               </Select>
             )}
           </Campo>

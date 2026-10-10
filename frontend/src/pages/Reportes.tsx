@@ -1,0 +1,199 @@
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { Exportar, ReporteTabla } from "../components/ReporteTabla";
+import { Boton, Campo, Cargando, EncabezadoPagina, ErrorApi, Input, Select, Tarjeta, Vacio } from "../components/ui";
+import { api, type Query } from "../lib/api";
+import { useFiltros } from "../lib/filtros";
+import { useEmpresasCatalogo, useProyectosCatalogo } from "../lib/queries";
+import { MONEDAS, type Reporte } from "../lib/types";
+
+type Filtro = "empresa" | "proyecto" | "moneda";
+
+interface Definicion {
+  titulo: string;
+  descripcion: string;
+  ruta: (proyectoId: string) => string;
+  fijos?: Query;
+  filtros: Filtro[];
+  requiereProyecto?: boolean;
+  /** Solo usa la fecha «Hasta» (saldo al corte). */
+  soloCorte?: boolean;
+}
+
+const REPORTES: Record<string, Definicion> = {
+  "saldos-proyectos": {
+    titulo: "Saldo por proyecto",
+    descripcion: "Ingresos (neto), gastos, salidas y saldo de cada proyecto, por moneda.",
+    ruta: () => "/reportes/saldos-proyectos",
+    filtros: ["empresa", "proyecto"],
+  },
+  "saldos-proyectos-empresa": {
+    titulo: "Saldo por proyecto y empresa",
+    descripcion: "Cuánto tiene cada proyecto en cada empresa. El dinero de un proyecto solo puede salir de la empresa donde entró.",
+    ruta: () => "/reportes/saldos-proyectos",
+    fijos: { por_empresa: true },
+    filtros: ["empresa", "proyecto"],
+  },
+  historial: {
+    titulo: "Historial de un proyecto",
+    descripcion: "Todas las entradas y salidas del proyecto, a qué cuenta llegaron y de cuál salieron, con saldo acumulado.",
+    ruta: (p) => `/reportes/historial-proyecto/${p}`,
+    filtros: ["proyecto", "empresa"],
+    requiereProyecto: true,
+  },
+  "saldos-cuentas": {
+    titulo: "Saldo por cuenta",
+    descripcion: "Cuánto hay en cada caja y en cada cuenta de banco, con totales de cajas y bancos por moneda.",
+    ruta: () => "/reportes/saldos-cuentas",
+    filtros: ["empresa", "moneda"],
+  },
+  cuadre: {
+    titulo: "Cuadre de cuentas y proyectos",
+    descripcion: "Por empresa y moneda: entradas − salidas = saldo en cuentas = saldo de los proyectos. Se calcula al corte «Hasta» (por defecto, hoy).",
+    ruta: () => "/reportes/cuadre",
+    filtros: ["empresa"],
+    soloCorte: true,
+  },
+  "gastos-acumulados": {
+    titulo: "Gastos acumulados",
+    descripcion: "Suma de los porcentajes aplicados en las entradas, por moneda.",
+    ruta: () => "/reportes/gastos",
+    fijos: { agrupar: "moneda" },
+    filtros: ["empresa", "proyecto"],
+  },
+  "gastos-proyecto": {
+    titulo: "Gastos por proyecto",
+    descripcion: "Porcentajes aplicados en las entradas de cada proyecto.",
+    ruta: () => "/reportes/gastos",
+    fijos: { agrupar: "proyecto" },
+    filtros: ["empresa", "proyecto"],
+  },
+  "gastos-empresa": {
+    titulo: "Gastos por empresa",
+    descripcion: "Porcentajes aplicados en las entradas que llegaron a cada empresa.",
+    ruta: () => "/reportes/gastos",
+    fijos: { agrupar: "empresa" },
+    filtros: ["empresa", "proyecto"],
+  },
+  "ingresos-proyecto": {
+    titulo: "Ingresos por proyecto",
+    descripcion: "Lo que llegó a las cuentas (neto) por proyecto.",
+    ruta: () => "/reportes/ingresos",
+    fijos: { agrupar: "proyecto" },
+    filtros: ["empresa", "proyecto"],
+  },
+  "ingresos-empresa": {
+    titulo: "Ingresos por empresa",
+    descripcion: "Lo que llegó a las cuentas (neto) de cada empresa.",
+    ruta: () => "/reportes/ingresos",
+    fijos: { agrupar: "empresa" },
+    filtros: ["empresa", "proyecto"],
+  },
+};
+
+const CLAVES = ["reporte", "desde", "hasta", "empresa_id", "proyecto_id", "moneda"] as const;
+
+export default function Reportes() {
+  const { filtros, cambiar } = useFiltros(CLAVES);
+  const clave = filtros.reporte in REPORTES ? filtros.reporte : "saldos-proyectos";
+  const def = REPORTES[clave];
+  const empresas = useEmpresasCatalogo();
+  const proyectos = useProyectosCatalogo();
+
+  const query: Query = {
+    ...def.fijos,
+    desde: def.soloCorte ? undefined : filtros.desde,
+    hasta: filtros.hasta,
+    empresa_id: def.filtros.includes("empresa") ? filtros.empresa_id : undefined,
+    proyecto_id: def.filtros.includes("proyecto") && !def.requiereProyecto ? filtros.proyecto_id : undefined,
+    moneda: def.filtros.includes("moneda") ? filtros.moneda : undefined,
+  };
+  const listo = !def.requiereProyecto || !!filtros.proyecto_id;
+  const ruta = def.ruta(filtros.proyecto_id);
+
+  const reporte = useQuery({
+    queryKey: ["reportes", ruta, query],
+    queryFn: () => api.get<Reporte>(ruta, query),
+    enabled: listo,
+    placeholderData: keepPreviousData,
+  });
+
+  return (
+    <>
+      <EncabezadoPagina titulo="Reportes" descripcion="Sin periodo se toma todo el historial. Pesos y dólares siempre por separado." />
+
+      <Tarjeta className="mb-4 p-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Campo etiqueta="Reporte" className="sm:col-span-2">
+            {(id) => (
+              <Select id={id} value={clave} onChange={(e) => cambiar({ reporte: e.target.value })}>
+                {Object.entries(REPORTES).map(([k, r]) => <option key={k} value={k}>{r.titulo}</option>)}
+              </Select>
+            )}
+          </Campo>
+          <Campo etiqueta="Desde">
+            {(id) => <Input id={id} type="date" value={def.soloCorte ? "" : filtros.desde} disabled={def.soloCorte}
+              onChange={(e) => cambiar({ desde: e.target.value })} />}
+          </Campo>
+          <Campo etiqueta="Hasta">
+            {(id) => <Input id={id} type="date" value={filtros.hasta} onChange={(e) => cambiar({ hasta: e.target.value })} />}
+          </Campo>
+          {def.filtros.includes("proyecto") && (
+            <Campo etiqueta={def.requiereProyecto ? "Proyecto *" : "Proyecto"}>
+              {(id) => (
+                <Select id={id} value={filtros.proyecto_id} onChange={(e) => cambiar({ proyecto_id: e.target.value })}>
+                  <option value="">{def.requiereProyecto ? "Elige un proyecto…" : "Todos"}</option>
+                  {proyectos.data?.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                </Select>
+              )}
+            </Campo>
+          )}
+          {def.filtros.includes("empresa") && (
+            <Campo etiqueta="Empresa">
+              {(id) => (
+                <Select id={id} value={filtros.empresa_id} onChange={(e) => cambiar({ empresa_id: e.target.value })}>
+                  <option value="">Todas</option>
+                  {empresas.data?.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                </Select>
+              )}
+            </Campo>
+          )}
+          {def.filtros.includes("moneda") && (
+            <Campo etiqueta="Moneda">
+              {(id) => (
+                <Select id={id} value={filtros.moneda} onChange={(e) => cambiar({ moneda: e.target.value })}>
+                  <option value="">Todas</option>
+                  {MONEDAS.map((m) => <option key={m} value={m}>{m}</option>)}
+                </Select>
+              )}
+            </Campo>
+          )}
+          <div className="flex items-end">
+            <Boton variante="secundario" className="w-full"
+              disabled={!filtros.desde && !filtros.hasta && !filtros.empresa_id && !filtros.proyecto_id && !filtros.moneda}
+              onClick={() => cambiar({ desde: "", hasta: "", empresa_id: "", proyecto_id: "", moneda: "" })}>
+              Quitar filtros
+            </Boton>
+          </div>
+        </div>
+      </Tarjeta>
+
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-black">{reporte.data && listo ? reporte.data.titulo : def.titulo}</h2>
+          <p className="text-sm text-neutral-500">{def.descripcion}</p>
+        </div>
+        {listo && <Exportar ruta={ruta} query={query} nombre={clave} />}
+      </div>
+      <ErrorApi error={reporte.error} className="mb-4" />
+      <Tarjeta>
+        {!listo ? (
+          <Vacio titulo="Elige un proyecto" descripcion="Este reporte muestra el historial de un solo proyecto." />
+        ) : reporte.isLoading || !reporte.data ? (
+          <Cargando />
+        ) : (
+          <ReporteTabla reporte={reporte.data} />
+        )}
+      </Tarjeta>
+    </>
+  );
+}

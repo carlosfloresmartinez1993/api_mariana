@@ -2,12 +2,24 @@
 // Los montos llegan como texto ("1234.50") para no perder precisión.
 
 export type Rol = "superusuario" | "admin" | "contador";
+export type Moneda = "MXN" | "USD";
+export type TipoCuenta = "banco" | "caja";
+export type Forma = "transferencia" | "efectivo";
+export type Estado = "vigentes" | "anulados" | "todos";
+
+export const MONEDAS: Moneda[] = ["MXN", "USD"];
 
 export const NOMBRE_ROL: Record<Rol, string> = {
   superusuario: "Superusuario",
   admin: "Administrador",
   contador: "Contador",
 };
+
+export const NOMBRE_FORMA: Record<Forma, string> = { transferencia: "Transferencia", efectivo: "Efectivo" };
+export const NOMBRE_TIPO: Record<TipoCuenta, string> = { banco: "Banco", caja: "Caja" };
+
+/** Efectivo → caja; transferencia → cuenta de banco. */
+export const TIPO_DE_FORMA: Record<Forma, TipoCuenta> = { transferencia: "banco", efectivo: "caja" };
 
 export interface Pagina<T> {
   items: T[];
@@ -31,6 +43,130 @@ export interface Token {
   expires_in: number;
 }
 
+/** Quién registró el dato y cuándo. */
+export interface Registro {
+  creado_por: string;
+  creado_por_nombre: string;
+  fecha_creacion: string;
+}
+
+export interface SaldoMoneda {
+  moneda: Moneda;
+  saldo: string;
+}
+
+export interface Empresa extends Registro {
+  id: string;
+  nombre: string;
+  activa: boolean;
+  num_cuentas: number;
+  num_proyectos: number;
+  saldos: SaldoMoneda[];
+}
+
+export interface Cuenta extends Registro {
+  id: string;
+  empresa_id: string;
+  empresa_nombre: string;
+  tipo: TipoCuenta;
+  moneda: Moneda;
+  nombre: string;
+  banco: string | null;
+  numero: string | null;
+  activa: boolean;
+  saldo: string;
+}
+
+export interface SaldoProyecto {
+  moneda: Moneda;
+  ingresos: string;
+  gastos: string;
+  salidas: string;
+  saldo: string;
+}
+
+/** Lo que el proyecto tiene en una empresa: solo de ahí puede salir ese dinero. */
+export interface SaldoProyectoEmpresa extends SaldoProyecto {
+  empresa_id: string;
+  empresa_nombre: string;
+}
+
+export interface EmpresaBreve {
+  id: string;
+  nombre: string;
+  activa: boolean;
+}
+
+export interface Proyecto extends Registro {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  activo: boolean;
+  empresas: EmpresaBreve[];
+  /** Todas las empresas. */
+  saldos: SaldoProyecto[];
+  saldos_por_empresa: SaldoProyectoEmpresa[];
+}
+
+interface Anulacion {
+  anulado: boolean;
+  motivo_anulacion: string | null;
+  anulado_por: string | null;
+  fecha_anulacion: string | null;
+}
+
+export interface Entrada extends Registro, Anulacion {
+  id: string;
+  proyecto_id: string;
+  proyecto_nombre: string;
+  empresa_id: string;
+  empresa_nombre: string;
+  cuenta_id: string;
+  cuenta_nombre: string;
+  moneda: Moneda;
+  fecha: string;
+  forma: Forma;
+  monto: string;
+  porcentaje_gasto: string;
+  monto_gasto: string;
+  monto_neto: string;
+  concepto: string | null;
+  referencia: string | null;
+}
+
+export interface Salida extends Registro, Anulacion {
+  id: string;
+  proyecto_id: string;
+  proyecto_nombre: string;
+  empresa_id: string;
+  empresa_nombre: string;
+  cuenta_id: string;
+  cuenta_nombre: string;
+  moneda: Moneda;
+  fecha: string;
+  forma: Forma;
+  monto: string;
+  concepto: string;
+  beneficiario: string | null;
+}
+
+export type Movimiento = Entrada | Salida;
+
+export interface Reporte {
+  titulo: string;
+  parametros: Record<string, unknown>;
+  columnas: { clave: string; etiqueta: string }[];
+  filas: Record<string, unknown>[];
+  totales: Record<string, unknown>[];
+  elaborado_por: string | null;
+}
+
+export interface Resumen {
+  dinero: { moneda: Moneda; cajas: string; bancos: string; total: string }[];
+  empresas: number;
+  proyectos: number;
+}
+
 export const ACCIONES_BITACORA = {
   INICIO_SESION: "Inicio de sesión",
   INICIO_SESION_FALLIDO: "Inicio de sesión fallido",
@@ -40,9 +176,14 @@ export const ACCIONES_BITACORA = {
   ACTIVAR: "Activación",
   DESACTIVAR: "Desactivación",
   ANULAR: "Anulación",
+  VINCULAR: "Vinculación",
+  DESVINCULAR: "Desvinculación",
+  CAMBIO_SALDO_INICIAL: "Cambio de saldo inicial",
 } as const;
 
 export type AccionBitacora = keyof typeof ACCIONES_BITACORA;
+
+export const ENTIDADES_BITACORA = ["Usuario", "Empresa", "Cuenta", "Proyecto", "Entrada", "Salida"] as const;
 
 export interface RegistroBitacora {
   id: string;
