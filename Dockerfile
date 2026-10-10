@@ -2,7 +2,7 @@
 # La API queda en /api y la aplicación web en /. Ver render.yaml.
 
 # ---------- 1. Frontend ----------
-FROM node:22-slim AS frontend
+FROM node:25-slim AS frontend
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
