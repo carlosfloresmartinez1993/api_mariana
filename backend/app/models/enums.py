@@ -43,7 +43,9 @@ class AccionBitacora(StrEnum):
     ANULAR = "ANULAR"
     VINCULAR = "VINCULAR"
     DESVINCULAR = "DESVINCULAR"
-    CAMBIO_SALDO_INICIAL = "CAMBIO_SALDO_INICIAL"
+    CAMBIO_SALDO_INICIAL = "CAMBIO_SALDO_INICIAL"  # ya no se usa; se conserva por los registros antiguos
+    SUBIR_FACTURA = "SUBIR_FACTURA"
+    ELIMINAR_FACTURA = "ELIMINAR_FACTURA"
 
 
 def enum_columna(enum_cls: type[StrEnum], nombre: str, largo: int) -> SAEnum:

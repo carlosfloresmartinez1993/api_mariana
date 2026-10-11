@@ -6,14 +6,14 @@ from sqlalchemy import CheckConstraint, Computed, Date, ForeignKey, ForeignKeyCo
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, UUIDPk
-from app.models.comun import Anulable, Registrado
+from app.models.comun import Anulable, ConFactura, Registrado
 from app.models.empresa import Cuenta, Empresa, Proyecto
 from app.models.enums import Forma, Moneda, enum_columna
 
 GASTO_SQL = "round(monto * porcentaje_gasto / 100, 2)"
 
 
-class Entrada(UUIDPk, Registrado, Anulable, Base):
+class Entrada(UUIDPk, Registrado, Anulable, ConFactura, Base):
     """Dinero que entra a un proyecto, en una cuenta de una empresa.
 
     El gasto (porcentaje) se lo queda el proveedor antes: a la cuenta llega el neto.
@@ -65,7 +65,7 @@ class Entrada(UUIDPk, Registrado, Anulable, Base):
         return self.cuenta.nombre
 
 
-class Salida(UUIDPk, Registrado, Anulable, Base):
+class Salida(UUIDPk, Registrado, Anulable, ConFactura, Base):
     """Dinero que sale de un proyecto, desde una cuenta de una empresa."""
 
     __tablename__ = "salidas"

@@ -60,3 +60,32 @@ export function calcularEntrada(monto: string, porcentajeGasto: string): { gasto
   const gasto = Math.round((centavos * pct) / 100);
   return { gasto: gasto / 100, neto: (centavos - gasto) / 100 };
 }
+
+/**
+ * Formatea un monto mientras se escribe: separador de miles automático y hasta 2 decimales.
+ * "1234567.5" → "1,234,567.5". Solo acepta dígitos y un punto decimal.
+ */
+export function formatearMientrasEscribe(texto: string): string {
+  const limpio = texto.replace(/[^\d.]/g, "");
+  const [entero, ...resto] = limpio.split(".");
+  const enteroSinCeros = entero.replace(/^0+(?=\d)/, "");
+  const conMiles = enteroSinCeros.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return resto.length ? `${conMiles}.${resto.join("").slice(0, 2)}` : conMiles;
+}
+
+/** Monto escrito ("1,234.50") → texto para la API ("1234.50"). */
+export function montoParaApi(texto: string): string {
+  return texto.replace(/,/g, "");
+}
+
+/** Monto de la API ("1234.5") → texto para editar ("1,234.50"). */
+export function montoParaEditar(valor: string | null | undefined): string {
+  if (!valor) return "";
+  const [entero, decimales = ""] = Number(valor).toFixed(2).split(".");
+  return `${formatearMientrasEscribe(entero)}.${decimales}`;
+}
+
+export function tamanoArchivo(bytes: number | null | undefined): string {
+  if (!bytes) return "";
+  return bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}

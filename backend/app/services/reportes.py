@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Cuenta, Empresa, Entrada, Moneda, Proyecto, Salida, TipoCuenta
+from app.models import Cuenta, Empresa, EmpresaProyecto, Entrada, Moneda, Proyecto, Salida, TipoCuenta
 from app.services.exportacion import Reporte
 from app.services.saldos import (
     CERO,
@@ -56,6 +56,8 @@ def _totales_por_moneda(filas: list[dict[str, Any]], columnas: tuple[str, ...], 
                         ) -> list[dict[str, Any]]:
     suma: dict[str, dict[str, Decimal]] = defaultdict(lambda: defaultdict(lambda: CERO))
     for f in filas:
+        if not f.get("moneda"):  # p. ej. un proyecto sin movimientos
+            continue
         for c in columnas:
             suma[f["moneda"]][c] += f.get(c) or 0
     return [{etiqueta: f"TOTAL {m}", "moneda": m, **valores} for m, valores in sorted(suma.items())]
@@ -65,20 +67,31 @@ def _totales_por_moneda(filas: list[dict[str, Any]], columnas: tuple[str, ...], 
 def saldos_proyectos(db: Session, *, desde: date | None = None, hasta: date | None = None,
                      empresa_id: uuid.UUID | None = None, proyecto_id: uuid.UUID | None = None,
                      por_empresa: bool = False) -> Reporte:
-    """Con `por_empresa`, una fila por proyecto, empresa y moneda: el dinero que el proyecto tiene en cada empresa."""
-    totales = totales_por_empresa(db, [proyecto_id] if proyecto_id else None, empresa_id=empresa_id,
-                                  desde=desde, hasta=hasta)
-    proyectos = dict(db.execute(select(Proyecto.id, Proyecto.nombre)
-                                .where(Proyecto.id.in_({p for p, _, _ in totales}))).all())
+    """Todos los proyectos, tengan movimientos o no (con empresa: los vinculados a ella).
+
+    Con `por_empresa`, una fila por proyecto, empresa y moneda: el dinero que el proyecto tiene en cada empresa.
+    Un saldo negativo significa que el proyecto usó dinero de otros proyectos.
+    """
+    consulta = select(Proyecto.id, Proyecto.nombre)
+    if proyecto_id:
+        consulta = consulta.where(Proyecto.id == proyecto_id)
+    if empresa_id:
+        consulta = consulta.where(Proyecto.id.in_(select(EmpresaProyecto.proyecto_id)
+                                                  .where(EmpresaProyecto.empresa_id == empresa_id)))
+    proyectos = dict(db.execute(consulta).all())
+    totales = totales_por_empresa(db, list(proyectos), empresa_id=empresa_id, desde=desde, hasta=hasta)
     empresas = dict(db.execute(select(Empresa.id, Empresa.nombre).where(Empresa.id.in_({e for _, e, _ in totales}))).all())
     agrupados: dict[tuple, TotalesProyecto] = defaultdict(TotalesProyecto)
     for (pid, eid, m), t in totales.items():
-        agrupados[(proyectos[pid], empresas[eid] if por_empresa else None, m)] += t
-    filas = sorted(
-        ({"proyecto": p, **({"empresa": e} if por_empresa else {}), "moneda": m, "ingresos": t.ingresos,
-          "gastos": t.gastos, "salidas": t.salidas, "saldo": t.saldo} for (p, e, m), t in agrupados.items()),
-        key=lambda f: (f["proyecto"].lower(), f.get("empresa", "").lower(), f["moneda"]),
-    )
+        agrupados[(pid, empresas[eid] if por_empresa else None, m)] += t
+    con_movimientos = {pid for pid, _, _ in agrupados}
+    filas = [{"proyecto": proyectos[pid], **({"empresa": e} if por_empresa else {}), "moneda": m,
+              "ingresos": t.ingresos, "gastos": t.gastos, "salidas": t.salidas, "saldo": t.saldo}
+             for (pid, e, m), t in agrupados.items()]
+    filas += [{"proyecto": nombre, **({"empresa": None} if por_empresa else {}), "moneda": None, "ingresos": CERO,
+               "gastos": CERO, "salidas": CERO, "saldo": CERO}
+              for pid, nombre in proyectos.items() if pid not in con_movimientos]
+    filas.sort(key=lambda f: (f["proyecto"].lower(), (f.get("empresa") or "").lower(), f["moneda"] or ""))
     return Reporte(
         titulo="Saldo por proyecto y empresa" if por_empresa else "Saldo por proyecto",
         columnas=[("proyecto", "Proyecto"), *([("empresa", "Empresa")] if por_empresa else []), ("moneda", "Moneda"),

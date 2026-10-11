@@ -9,6 +9,14 @@ from app.schemas.comun import Dinero, Porcentaje, Texto, TextoOpcional
 from app.schemas.empresa import Registro
 
 
+class Factura(BaseModel):
+    requiere_factura: bool
+    factura_nombre: str | None
+    factura_tipo: str | None
+    factura_tamano: int | None
+    factura_subida_en: datetime | None
+
+
 class Anulacion(BaseModel):
     anulado: bool
     motivo_anulacion: str | None
@@ -27,6 +35,7 @@ class EntradaCrear(BaseModel):
     porcentaje_gasto: Porcentaje = Decimal("0")
     concepto: TextoOpcional = None
     referencia: TextoOpcional = Field(default=None, max_length=100)
+    requiere_factura: bool = False
 
 
 class EntradaActualizar(BaseModel):
@@ -37,9 +46,10 @@ class EntradaActualizar(BaseModel):
     porcentaje_gasto: Porcentaje | None = None
     concepto: TextoOpcional = None
     referencia: TextoOpcional = Field(default=None, max_length=100)
+    requiere_factura: bool | None = None
 
 
-class EntradaOut(Registro, Anulacion):
+class EntradaOut(Registro, Anulacion, Factura):
     id: uuid.UUID
     proyecto_id: uuid.UUID
     proyecto_nombre: str
@@ -68,6 +78,7 @@ class SalidaCrear(BaseModel):
     monto: Dinero
     concepto: Texto
     beneficiario: TextoOpcional = Field(default=None, max_length=200)
+    requiere_factura: bool = False
 
 
 class SalidaActualizar(BaseModel):
@@ -75,9 +86,10 @@ class SalidaActualizar(BaseModel):
     monto: Dinero | None = None
     concepto: Texto | None = None
     beneficiario: TextoOpcional = Field(default=None, max_length=200)
+    requiere_factura: bool | None = None
 
 
-class SalidaOut(Registro, Anulacion):
+class SalidaOut(Registro, Anulacion, Factura):
     id: uuid.UUID
     proyecto_id: uuid.UUID
     proyecto_nombre: str

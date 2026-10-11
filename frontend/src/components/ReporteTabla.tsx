@@ -19,6 +19,7 @@ function celda(clave: string, valor: unknown): { texto: string; numerica: boolea
     return { texto: n < 0 ? `(${numero(-n)})` : numero(n), numerica: true, negativa: n < 0 };
   }
   if (FECHA.test(texto)) return { texto: fecha(texto), numerica: false, negativa: false };
+  if (texto === "NO CUADRA") return { texto, numerica: false, negativa: true };
   if (texto === "transferencia" || texto === "efectivo") return { texto: texto[0].toUpperCase() + texto.slice(1), numerica: false, negativa: false };
   return { texto, numerica: false, negativa: false };
 }
@@ -41,7 +42,7 @@ export function ReporteTabla({ reporte }: { reporte: Reporte }) {
           <tr key={i} className={f.tipo === "Saldo anterior" ? "bg-neutral-50 italic" : "hover:bg-neutral-50"}>
             {reporte.columnas.map((c) => {
               const v = celda(c.clave, f[c.clave]);
-              return <Td key={c.clave} derecha={v.numerica} className={v.negativa ? "font-semibold" : undefined}>{v.texto}</Td>;
+              return <Td key={c.clave} derecha={v.numerica} className={v.negativa ? "font-semibold text-red-600!" : undefined}>{v.texto}</Td>;
             })}
           </tr>
         ))}
@@ -52,7 +53,7 @@ export function ReporteTabla({ reporte }: { reporte: Reporte }) {
             <tr key={i} className="font-semibold">
               {reporte.columnas.map((c) => {
                 const v = celda(c.clave, t[c.clave]);
-                return <Td key={c.clave} derecha={v.numerica} className="text-black">{v.texto}</Td>;
+                return <Td key={c.clave} derecha={v.numerica} className={v.negativa ? "text-red-600!" : "text-black"}>{v.texto}</Td>;
               })}
             </tr>
           ))}

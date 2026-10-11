@@ -3,7 +3,8 @@ import { Link } from "react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { Anular } from "../components/formularios/Anular";
-import { EntradaForm, SalidaForm } from "../components/formularios/MovimientoForms";
+import { EntradaForm, SalidaForm, verFactura } from "../components/formularios/MovimientoForms";
+import { useToast } from "../components/Toast";
 import { Icono } from "../components/Icono";
 import {
   Boton,
@@ -29,7 +30,7 @@ import { useCuentas, useEmpresasCatalogo, useProyectosCatalogo } from "../lib/qu
 import { MONEDAS, NOMBRE_FORMA, type Entrada, type Movimiento, type Pagina, type Salida } from "../lib/types";
 
 const LIMITE = 50;
-const CLAVES = ["proyecto_id", "empresa_id", "cuenta_id", "moneda", "forma", "desde", "hasta", "estado", "q"] as const;
+const CLAVES = ["proyecto_id", "empresa_id", "cuenta_id", "moneda", "forma", "desde", "hasta", "estado", "factura", "q"] as const;
 type Filtros = Record<(typeof CLAVES)[number], string>;
 
 function useMovimientos<T>(ruta: string) {
@@ -105,6 +106,17 @@ function BarraFiltros({ filtros, cambiar, limpiar, activos }: {
         <Campo etiqueta="Hasta">
           {(id) => <Input id={id} type="date" value={filtros.hasta} onChange={(e) => cambiar({ hasta: e.target.value })} />}
         </Campo>
+        <Campo etiqueta="Factura">
+          {(id) => (
+            <Select id={id} value={filtros.factura} onChange={(e) => cambiar({ factura: e.target.value })}>
+              <option value="">Todas</option>
+              <option value="requerida">Requieren factura</option>
+              <option value="pendiente">Requieren y no la tienen</option>
+              <option value="adjunta">Con factura adjunta</option>
+              <option value="sin">Sin factura</option>
+            </Select>
+          )}
+        </Campo>
         <Campo etiqueta="Estado">
           {(id) => (
             <Select id={id} value={filtros.estado} onChange={(e) => cambiar({ estado: e.target.value })}>
@@ -136,6 +148,20 @@ function Acciones({ mov, onEditar, onAnular }: { mov: Movimiento; onEditar: () =
       <Boton variante="fantasma" tamano="sm" onClick={onAnular}>Anular</Boton>
     </>
   );
+}
+
+/** Estado de la factura en una fila: adjunta (se abre), pendiente o nada. */
+function FacturaCelda({ mov, ruta }: { mov: Movimiento; ruta: string }) {
+  const avisar = useToast();
+  if (mov.factura_nombre) {
+    return (
+      <button type="button" className="text-left text-xs font-medium underline" title={mov.factura_nombre}
+        onClick={() => verFactura(ruta, mov.factura_nombre).catch((e) => avisar((e as Error).message, "error"))}>
+        Ver factura
+      </button>
+    );
+  }
+  return mov.requiere_factura ? <Insignia>Pendiente</Insignia> : <span className="text-neutral-400">—</span>;
 }
 
 function Registrado({ mov }: { mov: Movimiento }) {
@@ -192,7 +218,7 @@ export function Entradas() {
           cabecera={<>
             <Th>Fecha</Th><Th>Proyecto</Th><Th>Empresa · cuenta</Th><Th>Forma</Th>
             <Th derecha>Recibido</Th><Th derecha>% gasto</Th><Th derecha>Gasto</Th><Th derecha>Neto</Th>
-            <Th>Concepto</Th><Th>Registró</Th><Th><span className="sr-only">Acciones</span></Th>
+            <Th>Concepto</Th><Th>Factura</Th><Th>Registró</Th><Th><span className="sr-only">Acciones</span></Th>
           </>}
           fila={(e) => <>
             <Td className="whitespace-nowrap">{fecha(e.fecha)}</Td>
@@ -204,6 +230,7 @@ export function Entradas() {
             <Td derecha>{Number(e.monto_gasto) ? <Monto valor={e.monto_gasto} /> : "—"}</Td>
             <Td derecha className="font-semibold"><Monto valor={e.monto_neto} /></Td>
             <Td className="max-w-48">{e.concepto}{e.referencia && <p className="text-xs text-neutral-500">Ref. {e.referencia}</p>}</Td>
+            <Td><FacturaCelda mov={e} ruta={`/entradas/${e.id}`} /></Td>
             <Td className="text-neutral-500"><Registrado mov={e} /></Td>
             <Td className="whitespace-nowrap text-right"><Acciones mov={e} onEditar={() => setForm({ entrada: e })} onAnular={() => setAnulando(e)} /></Td>
           </>}
@@ -232,7 +259,7 @@ export function Salidas() {
         <Contenido {...m} vacio={<Vacio titulo="Sin salidas" descripcion={m.activos ? "No hay salidas con esos filtros." : undefined} />}
           cabecera={<>
             <Th>Fecha</Th><Th>Proyecto</Th><Th>Empresa · cuenta</Th><Th>Forma</Th><Th derecha>Monto</Th>
-            <Th>Concepto</Th><Th>Registró</Th><Th><span className="sr-only">Acciones</span></Th>
+            <Th>Concepto</Th><Th>Factura</Th><Th>Registró</Th><Th><span className="sr-only">Acciones</span></Th>
           </>}
           fila={(s) => <>
             <Td className="whitespace-nowrap">{fecha(s.fecha)}</Td>
@@ -241,6 +268,7 @@ export function Salidas() {
             <Td>{NOMBRE_FORMA[s.forma]}</Td>
             <Td derecha className="font-semibold"><Monto valor={s.monto} moneda={s.moneda} /></Td>
             <Td className="max-w-56">{s.concepto}{s.beneficiario && <p className="text-xs text-neutral-500">{s.beneficiario}</p>}</Td>
+            <Td><FacturaCelda mov={s} ruta={`/salidas/${s.id}`} /></Td>
             <Td className="text-neutral-500"><Registrado mov={s} /></Td>
             <Td className="whitespace-nowrap text-right"><Acciones mov={s} onEditar={() => setForm({ salida: s })} onAnular={() => setAnulando(s)} /></Td>
           </>}

@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,6 +40,27 @@ class Settings(BaseSettings):
 
     # Build del frontend (frontend/dist) que sirve app.servidor en producción
     FRONTEND_DIR: Path = Path("./static")
+
+    # Facturas de entradas y salidas. La BD guarda solo la clave (ruta) del archivo.
+    #   local: carpeta ARCHIVOS_DIR (en Render gratuito se borra en cada despliegue)
+    #   s3:    bucket compatible con S3 (Cloudflare R2, Supabase Storage, Railway Buckets, AWS S3)
+    ALMACENAMIENTO: Literal["local", "s3"] = "local"
+    ARCHIVOS_DIR: Path = Path("./archivos")
+    S3_BUCKET: str | None = None
+    S3_ENDPOINT_URL: str | None = None  # vacío = AWS S3
+    S3_REGION: str = "auto"
+    S3_ACCESS_KEY_ID: str | None = None
+    S3_SECRET_ACCESS_KEY: str | None = None
+    S3_PREFIJO: str = ""  # carpeta dentro del bucket, p. ej. "produccion/"
+    MAX_DOCUMENTO_MB: int = Field(default=5, ge=1, le=20)
+
+    @model_validator(mode="after")
+    def _s3_completo(self) -> "Settings":
+        if self.ALMACENAMIENTO == "s3":
+            faltan = [n for n in ("S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY") if not getattr(self, n)]
+            if faltan:
+                raise ValueError(f"ALMACENAMIENTO=s3 requiere: {', '.join(faltan)}")
+        return self
 
     # Superusuario: se crea al arrancar la API si no existe (en cualquier servidor).
     # Con SUPERUSUARIO_RESTABLECER=true se le vuelve a asignar la contraseña del entorno en cada arranque.

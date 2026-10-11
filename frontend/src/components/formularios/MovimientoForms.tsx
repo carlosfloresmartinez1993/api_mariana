@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
-import { api } from "../../lib/api";
-import { calcularEntrada, dinero, hoyISO } from "../../lib/format";
+import { api, guardarBlob } from "../../lib/api";
+import { calcularEntrada, dinero, hoyISO, montoParaApi, montoParaEditar, tamanoArchivo } from "../../lib/format";
 import { useCuentas, useEmpresasCatalogo, useInvalidarDinero, useProyectosCatalogo } from "../../lib/queries";
 import {
   NOMBRE_FORMA,
@@ -13,7 +13,7 @@ import {
 } from "../../lib/types";
 import { useEnvio } from "../../lib/useEnvio";
 import { useToast } from "../Toast";
-import { Aviso, Boton, Campo, Dato, ErrorApi, Input, Modal, Opciones, PieModal, Select } from "../ui";
+import { Aviso, Boton, Campo, Casilla, Dato, ErrorApi, Input, InputMonto, Modal, Monto, Opciones, PieModal, Select } from "../ui";
 
 const FORMAS: { valor: Forma; texto: string }[] = [
   { valor: "transferencia", texto: "Transferencia" },
@@ -119,7 +119,7 @@ function useFechaMonto(abierto: boolean, inicial?: { fecha: string; monto: strin
   useEffect(() => {
     if (abierto) {
       setFecha(inicial?.fecha ?? hoyISO());
-      setMonto(inicial?.monto ?? "");
+      setMonto(montoParaEditar(inicial?.monto));
     }
   }, [abierto, inicial]);
   return { fecha, setFecha, monto, setMonto };
@@ -135,6 +135,74 @@ function Fijos({ children }: { children: ReactNode }) {
   );
 }
 
+// ------------------------------------------------------------------ factura (opcional)
+const TIPOS_FACTURA = ".pdf,.xml,.jpg,.jpeg,.png,application/pdf,application/xml,text/xml,image/jpeg,image/png";
+
+/** Abre la factura en otra pestaña (la descarga lleva el token, por eso no es un enlace directo). */
+export async function verFactura(ruta: string, nombre: string | null) {
+  const blob = await api.blob(`${ruta}/factura`);
+  const url = URL.createObjectURL(blob);
+  const ventana = window.open(url, "_blank");
+  if (!ventana) guardarBlob(blob, nombre ?? "factura");
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+function useFactura(abierto: boolean, mov?: Entrada | Salida | null) {
+  const [requiere, setRequiere] = useState(false);
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [quitar, setQuitar] = useState(false);
+  useEffect(() => {
+    if (abierto) {
+      setRequiere(mov?.requiere_factura ?? false);
+      setArchivo(null);
+      setQuitar(false);
+    }
+  }, [abierto, mov]);
+
+  /** Después de guardar el movimiento: sube el archivo nuevo o quita el anterior. */
+  async function aplicar(ruta: string) {
+    if (archivo) {
+      const datos = new FormData();
+      datos.append("archivo", archivo);
+      await api.put(`${ruta}/factura`, datos);
+    } else if (quitar && mov?.factura_nombre) {
+      await api.delete(`${ruta}/factura`);
+    }
+  }
+
+  const campos = (ruta: string | null) => (
+    <div className="space-y-3 rounded-md p-3 ring-1 ring-neutral-200">
+      <Casilla checked={requiere} onChange={setRequiere} ayuda="Opcional. Sirve para encontrar después los que aún no tienen factura.">
+        Requiere factura
+      </Casilla>
+      {mov?.factura_nombre && !quitar && !archivo && ruta && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-neutral-600">Factura:</span>
+          <button type="button" className="font-medium underline" onClick={() => verFactura(ruta, mov.factura_nombre)}>
+            {mov.factura_nombre}
+          </button>
+          <span className="text-xs text-neutral-500">{tamanoArchivo(mov.factura_tamano)}</span>
+          <Boton variante="fantasma" tamano="sm" onClick={() => setQuitar(true)}>Quitar</Boton>
+        </div>
+      )}
+      {quitar && (
+        <p className="text-sm text-neutral-600">
+          La factura se quitará al guardar. <button type="button" className="underline" onClick={() => setQuitar(false)}>Deshacer</button>
+        </p>
+      )}
+      <Campo etiqueta={mov?.factura_nombre ? "Reemplazar factura" : "Factura"} ayuda="Opcional. PDF, XML, JPG o PNG.">
+        {(id) => (
+          <input id={id} type="file" accept={TIPOS_FACTURA}
+            onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+            className="block w-full text-sm text-neutral-700 file:mr-3 file:rounded-md file:border-0 file:bg-black file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-neutral-800" />
+        )}
+      </Campo>
+    </div>
+  );
+
+  return { requiere, aplicar, campos };
+}
+
 // ------------------------------------------------------------------ entrada
 export function EntradaForm({ abierto, entrada, proyectoId, onCerrar }: {
   abierto: boolean;
@@ -148,6 +216,7 @@ export function EntradaForm({ abierto, entrada, proyectoId, onCerrar }: {
   const destino = useDestino(abierto && !entrada, proyectoId);
   const inicial = useMemo(() => (entrada ? { fecha: entrada.fecha, monto: entrada.monto } : undefined), [entrada]);
   const { fecha, setFecha, monto, setMonto } = useFechaMonto(abierto, inicial);
+  const factura = useFactura(abierto, entrada);
   const [porcentaje, setPorcentaje] = useState("");
   const [concepto, setConcepto] = useState("");
   const [referencia, setReferencia] = useState("");
@@ -167,16 +236,23 @@ export function EntradaForm({ abierto, entrada, proyectoId, onCerrar }: {
   function guardar(e: FormEvent) {
     e.preventDefault();
     enviar(async () => {
-      const datos = { fecha, monto, porcentaje_gasto: porcentaje || "0", concepto: concepto || null, referencia: referencia || null };
+      const datos = {
+        fecha, monto: montoParaApi(monto), porcentaje_gasto: porcentaje || "0", concepto: concepto || null,
+        referencia: referencia || null, requiere_factura: factura.requiere,
+      };
+      let id = entrada?.id;
       if (entrada) {
         await api.patch(`/entradas/${entrada.id}`, datos);
-        avisar("Entrada actualizada");
       } else {
         const { proyectoId: proyecto_id, empresaId: empresa_id, cuentaId: cuenta_id, forma } = destino.d;
-        await api.post("/entradas", { ...datos, proyecto_id, empresa_id, cuenta_id, forma });
-        avisar("Entrada registrada");
+        id = (await api.post<Entrada>("/entradas", { ...datos, proyecto_id, empresa_id, cuenta_id, forma })).id;
       }
-      await invalidar();
+      try {
+        await factura.aplicar(`/entradas/${id}`);
+      } finally {
+        await invalidar();
+      }
+      avisar(entrada ? "Entrada actualizada" : "Entrada registrada");
       onCerrar();
     });
   }
@@ -199,7 +275,7 @@ export function EntradaForm({ abierto, entrada, proyectoId, onCerrar }: {
             {(id) => <Input id={id} type="date" required max={hoyISO()} value={fecha} onChange={(e) => setFecha(e.target.value)} />}
           </Campo>
           <Campo etiqueta={`Monto recibido${moneda ? ` (${moneda})` : ""}`} requerido>
-            {(id) => <Input id={id} required inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder="0.00" />}
+            {(id) => <InputMonto id={id} required value={monto} onChange={setMonto} placeholder="0.00" />}
           </Campo>
           <Campo etiqueta="% de gasto" ayuda="Opcional. Se lo queda el proveedor.">
             {(id) => <Input id={id} inputMode="decimal" value={porcentaje} onChange={(e) => setPorcentaje(e.target.value)} placeholder="0" />}
@@ -219,6 +295,7 @@ export function EntradaForm({ abierto, entrada, proyectoId, onCerrar }: {
             {(id) => <Input id={id} maxLength={100} value={referencia} onChange={(e) => setReferencia(e.target.value)} />}
           </Campo>
         </div>
+        {factura.campos(entrada ? `/entradas/${entrada.id}` : null)}
         <ErrorApi error={error} />
         <PieModal>
           <Boton variante="secundario" onClick={onCerrar}>Cancelar</Boton>
@@ -242,6 +319,7 @@ export function SalidaForm({ abierto, salida, proyectoId, onCerrar }: {
   const destino = useDestino(abierto && !salida, proyectoId);
   const inicial = useMemo(() => (salida ? { fecha: salida.fecha, monto: salida.monto } : undefined), [salida]);
   const { fecha, setFecha, monto, setMonto } = useFechaMonto(abierto, inicial);
+  const factura = useFactura(abierto, salida);
   const [concepto, setConcepto] = useState("");
   const [beneficiario, setBeneficiario] = useState("");
 
@@ -254,26 +332,32 @@ export function SalidaForm({ abierto, salida, proyectoId, onCerrar }: {
   }, [abierto, salida, limpiar]);
 
   const moneda = salida?.moneda ?? destino.cuenta?.moneda;
-  // El dinero de un proyecto solo puede salir de la empresa donde entró.
   const disponibleProyecto = destino.cuenta
     ? destino.proyecto?.saldos_por_empresa.find(
         (s) => s.empresa_id === destino.d.empresaId && s.moneda === destino.cuenta?.moneda,
       )?.saldo ?? "0"
     : null;
+  const montoNumero = Number(montoParaApi(monto) || 0);
+  const quedaEnNegativo = disponibleProyecto !== null && montoNumero > Number(disponibleProyecto);
 
   function guardar(e: FormEvent) {
     e.preventDefault();
     enviar(async () => {
-      const datos = { fecha, monto, concepto, beneficiario: beneficiario || null };
+      const datos = { fecha, monto: montoParaApi(monto), concepto, beneficiario: beneficiario || null,
+        requiere_factura: factura.requiere };
+      let id = salida?.id;
       if (salida) {
         await api.patch(`/salidas/${salida.id}`, datos);
-        avisar("Salida actualizada");
       } else {
         const { proyectoId: proyecto_id, empresaId: empresa_id, cuentaId: cuenta_id, forma } = destino.d;
-        await api.post("/salidas", { ...datos, proyecto_id, empresa_id, cuenta_id, forma });
-        avisar("Salida registrada");
+        id = (await api.post<Salida>("/salidas", { ...datos, proyecto_id, empresa_id, cuenta_id, forma })).id;
       }
-      await invalidar();
+      try {
+        await factura.aplicar(`/salidas/${id}`);
+      } finally {
+        await invalidar();
+      }
+      avisar(salida ? "Salida actualizada" : "Salida registrada");
       onCerrar();
     });
   }
@@ -293,21 +377,13 @@ export function SalidaForm({ abierto, salida, proyectoId, onCerrar }: {
         )}
         {destino.cuenta && disponibleProyecto !== null && (
           <div className="grid grid-cols-2 gap-3 rounded-md bg-neutral-50 p-3 ring-1 ring-neutral-200">
-            <Dato etiqueta="Disponible del proyecto en esta empresa">{dinero(disponibleProyecto, destino.cuenta.moneda)}</Dato>
-            <Dato etiqueta="Saldo de la cuenta">{dinero(destino.cuenta.saldo, destino.cuenta.moneda)}</Dato>
+            <Dato etiqueta="Saldo del proyecto en esta empresa"><Monto valor={disponibleProyecto} moneda={destino.cuenta.moneda} /></Dato>
+            <Dato etiqueta="Saldo de la cuenta"><Monto valor={destino.cuenta.saldo} moneda={destino.cuenta.moneda} /></Dato>
           </div>
         )}
-        {destino.cuenta && Number(disponibleProyecto) <= 0 && (
+        {destino.cuenta && quedaEnNegativo && (
           <Aviso tono="aviso">
-            {(() => {
-              const otras = (destino.proyecto?.saldos_por_empresa ?? []).filter(
-                (s) => s.moneda === destino.cuenta?.moneda && Number(s.saldo) > 0,
-              );
-              return otras.length
-                ? `El proyecto no tiene ${destino.cuenta?.moneda} en esta empresa. Tiene en: ` +
-                    otras.map((s) => `${s.empresa_nombre} (${dinero(s.saldo, s.moneda)})`).join(", ") + "."
-                : `El proyecto no tiene ${destino.cuenta?.moneda} disponibles en ninguna empresa.`;
-            })()}
+            El proyecto quedará en negativo: se usará dinero de otros proyectos que está en esta cuenta.
           </Aviso>
         )}
         <div className="grid gap-4 sm:grid-cols-2">
@@ -315,7 +391,7 @@ export function SalidaForm({ abierto, salida, proyectoId, onCerrar }: {
             {(id) => <Input id={id} type="date" required max={hoyISO()} value={fecha} onChange={(e) => setFecha(e.target.value)} />}
           </Campo>
           <Campo etiqueta={`Monto${moneda ? ` (${moneda})` : ""}`} requerido>
-            {(id) => <Input id={id} required inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder="0.00" />}
+            {(id) => <InputMonto id={id} required value={monto} onChange={setMonto} placeholder="0.00" />}
           </Campo>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -326,6 +402,7 @@ export function SalidaForm({ abierto, salida, proyectoId, onCerrar }: {
             {(id) => <Input id={id} maxLength={200} value={beneficiario} onChange={(e) => setBeneficiario(e.target.value)} />}
           </Campo>
         </div>
+        {factura.campos(salida ? `/salidas/${salida.id}` : null)}
         <ErrorApi error={error} />
         <PieModal>
           <Boton variante="secundario" onClick={onCerrar}>Cancelar</Boton>

@@ -100,18 +100,21 @@ def test_salida_descuenta_del_proyecto_y_de_la_cuenta(client, escenario):
     assert saldos_proyecto(client, e["h"], e["proyecto"])["MXN"]["saldo"] == "500.00"
 
 
-def test_salida_no_puede_exceder_el_saldo_del_proyecto(client, escenario):
+def test_un_proyecto_puede_quedar_en_negativo(client, escenario):
+    """Si un proyecto tuvo perdida, se paga con dinero de otros proyectos que esta en la misma cuenta."""
     e = escenario
     otro = crear_proyecto(client, e["h"], "Otro")
-    entrada(client, e["h"], otro, e["banco"], "1000000")  # la cuenta tiene dinero, pero de otro proyecto
+    entrada(client, e["h"], otro, e["banco"], "1000")
     entrada(client, e["h"], e["proyecto"], e["banco"], "100")
-    r = salida(client, e["h"], e["proyecto"], e["banco"], "100.01", esperado=422)
-    assert "proyecto" in r["detail"]
+    salida(client, e["h"], e["proyecto"], e["banco"], "300")
+    assert saldos_proyecto(client, e["h"], e["proyecto"])["MXN"]["saldo"] == "-200.00"
+    assert saldos_proyecto(client, e["h"], otro)["MXN"]["saldo"] == "1000.00"
+    assert saldo_cuenta(client, e["h"], e["banco"]) == "800.00"  # 1000 + 100 - 300 = 1000 + (-200)
 
 
-def test_salida_no_puede_exceder_el_saldo_de_la_cuenta(client, escenario):
+def test_la_cuenta_no_puede_quedar_en_negativo(client, escenario):
     e = escenario
-    entrada(client, e["h"], e["proyecto"], e["caja"], "1000")  # el dinero está en la caja
+    entrada(client, e["h"], e["proyecto"], e["caja"], "1000")  # el dinero esta en la caja
     r = salida(client, e["h"], e["proyecto"], e["banco"], "10", esperado=422)
     assert "cuenta" in r["detail"]
 
@@ -119,25 +122,24 @@ def test_salida_no_puede_exceder_el_saldo_de_la_cuenta(client, escenario):
 def test_monedas_separadas(client, escenario):
     e = escenario
     entrada(client, e["h"], e["proyecto"], e["usd"], "500")
-    saldos = saldos_proyecto(client, e["h"], e["proyecto"])
-    assert set(saldos) == {"USD"}
+    assert set(saldos_proyecto(client, e["h"], e["proyecto"])) == {"USD"}
+    salida(client, e["h"], e["proyecto"], e["banco"], "1", esperado=422)  # la cuenta en pesos esta vacia
     entrada(client, e["h"], crear_proyecto(client, e["h"], "Otro"), e["banco"], "1000")
-    salida(client, e["h"], e["proyecto"], e["banco"], "1", esperado=422)  # el proyecto no tiene pesos
+    salida(client, e["h"], e["proyecto"], e["banco"], "1")
+    saldos = saldos_proyecto(client, e["h"], e["proyecto"])
+    assert (saldos["USD"]["saldo"], saldos["MXN"]["saldo"]) == ("500.00", "-1.00")  # los USD no cubren pesos
 
 
-def test_el_dinero_del_proyecto_solo_sale_de_la_empresa_donde_entro(client, escenario):
-    """El caso que motivó la regla: un proyecto con dinero en otra empresa no puede usar el de esta."""
+def test_pagar_un_proyecto_con_dinero_de_otro_cuadra(client, escenario):
     e = escenario
-    otra = crear_empresa(client, e["h"], "Inmobiliaria Pacífico")
-    caja_otra = crear_cuenta(client, e["h"], otra["id"], "caja", "USD")
     torre, palmas = e["proyecto"], crear_proyecto(client, e["h"], "Las Palmas")
     entrada(client, e["h"], torre, e["usd"], "19800")
-    entrada(client, e["h"], palmas, caja_otra, "7840")
-    r = salida(client, e["h"], palmas, e["usd"], "7840", esperado=422)  # Palmas no tiene USD en esta empresa
-    assert "Constructora Norte" in r["detail"] and "Las Palmas" in r["detail"]
-    salida(client, e["h"], palmas, caja_otra, "7840")
+    salida(client, e["h"], palmas, e["usd"], "7840", concepto="Pago con dinero de Torre")
     proyecto = ok(client.get(f"/proyectos/{palmas['id']}", headers=e["h"]))
-    assert [(s["empresa_nombre"], s["moneda"], s["saldo"]) for s in proyecto["saldos_por_empresa"]] ==         [("Inmobiliaria Pacífico", "USD", "0.00")]
+    assert [(s["empresa_nombre"], s["moneda"], s["saldo"]) for s in proyecto["saldos_por_empresa"]] ==         [("Constructora Norte", "USD", "-7840.00")]
+    cuadre = ok(client.get("/reportes/cuadre", headers=e["h"]))
+    usd = next(f for f in cuadre["filas"] if f["moneda"] == "USD")
+    assert (usd["cuentas"], usd["proyectos"], usd["estado"]) == ("11960.00", "11960.00", "Cuadra")
 
 
 def test_saldo_del_proyecto_por_empresa(client, escenario):

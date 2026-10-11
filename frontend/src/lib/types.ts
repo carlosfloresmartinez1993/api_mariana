@@ -108,6 +108,15 @@ export interface Proyecto extends Registro {
   saldos_por_empresa: SaldoProyectoEmpresa[];
 }
 
+/** Factura opcional de una entrada o salida. */
+interface Factura {
+  requiere_factura: boolean;
+  factura_nombre: string | null;
+  factura_tipo: string | null;
+  factura_tamano: number | null;
+  factura_subida_en: string | null;
+}
+
 interface Anulacion {
   anulado: boolean;
   motivo_anulacion: string | null;
@@ -115,7 +124,7 @@ interface Anulacion {
   fecha_anulacion: string | null;
 }
 
-export interface Entrada extends Registro, Anulacion {
+export interface Entrada extends Registro, Anulacion, Factura {
   id: string;
   proyecto_id: string;
   proyecto_nombre: string;
@@ -134,7 +143,7 @@ export interface Entrada extends Registro, Anulacion {
   referencia: string | null;
 }
 
-export interface Salida extends Registro, Anulacion {
+export interface Salida extends Registro, Anulacion, Factura {
   id: string;
   proyecto_id: string;
   proyecto_nombre: string;

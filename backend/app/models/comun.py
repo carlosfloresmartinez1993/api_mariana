@@ -29,3 +29,14 @@ class Anulable:
     motivo_anulacion: Mapped[str | None] = mapped_column(String(500))
     anulado_por: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("usuarios.id", ondelete="RESTRICT"))
     fecha_anulacion: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ConFactura:
+    """Factura opcional de una entrada o salida. La casilla y el archivo son independientes."""
+
+    requiere_factura: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
+    factura_clave: Mapped[str | None] = mapped_column(String(500))  # ruta en el almacenamiento
+    factura_nombre: Mapped[str | None] = mapped_column(String(255))
+    factura_tipo: Mapped[str | None] = mapped_column(String(100))
+    factura_tamano: Mapped[int | None]
+    factura_subida_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -1,6 +1,6 @@
 # Control de Empresas y Proyectos — Análisis y modelo de datos
 
-Versión 1.1 · 9 de octubre de 2026 · Implementado (sin traspasos ni saldo inicial; saldo de proyecto por empresa) · Stack: ver `Stack tecnológico - Control de Clientes.docx` (api-bancaria). Interfaz en blanco y negro.
+Versión 1.2 · 11 de octubre de 2026 · Implementado (sin traspasos ni saldo inicial; proyectos pueden quedar en negativo; facturas opcionales) · Stack: ver `Stack tecnológico - Control de Clientes.docx` (api-bancaria). Interfaz en blanco y negro.
 
 ## 1. Módulos
 
@@ -52,7 +52,8 @@ Versión 1.1 · 9 de octubre de 2026 · Implementado (sin traspasos ni saldo ini
 
 ### Salidas
 - R17. Datos: proyecto, empresa, cuenta (de esa empresa), fecha, forma, monto > 0, concepto obligatorio, beneficiario opcional. Misma regla de forma ↔ tipo de cuenta.
-- R18. **El dinero de un proyecto queda en la empresa donde entró.** Una salida debe alcanzar con el saldo del proyecto **en esa empresa y moneda**, y con el saldo de la cuenta. Lo mismo al editar o anular.
+- R18. **Un proyecto puede quedar en negativo.** Si un proyecto tuvo pérdida, se registra la salida a su nombre aunque no tenga saldo: el dinero sale de la cuenta, donde está el de los otros proyectos. Lo único que se valida es que **la cuenta** alcance (es dinero físico). Lo mismo al editar o anular. Los saldos negativos se muestran en rojo en pantallas, reportes, Excel y PDF.
+- R18b. **Factura (opcional)**: entradas y salidas tienen la casilla «requiere factura» y un archivo de factura opcional (PDF, XML, JPG o PNG; se valida por contenido; máximo `MAX_DOCUMENTO_MB`). Se guarda en una carpeta local o en un bucket S3 (`ALMACENAMIENTO`); la BD guarda solo la ruta. Subir o quitar la factura queda en la bitácora. Las listas se filtran por factura requerida, pendiente, adjunta o sin factura.
 
 ### Sin traspasos
 - R19. No hay traspasos entre cuentas. Para llevar efectivo de la caja al banco se registra una **salida de la caja** y una **entrada sin %** al banco, del mismo proyecto y empresa.
@@ -70,7 +71,7 @@ Para un proyecto P, una empresa E y una moneda M (solo movimientos vigentes):
 ingresos(P, E, M) = Σ entradas.monto_neto
 gastos(P, E, M)   = Σ entradas.monto_gasto
 salidas(P, E, M)  = Σ salidas.monto
-saldo(P, E, M)    = ingresos − salidas          ← lo que puede salir de E para P
+saldo(P, E, M)    = ingresos − salidas          ← puede ser negativo
 saldo(P, M)       = Σ_E saldo(P, E, M)
 saldo cuentas(E, M) = Σ_P saldo(P, E, M)         ← cuadre
 ```
@@ -81,7 +82,7 @@ Todos aceptan `fecha_desde` y `fecha_hasta` opcionales (sin periodo = todo), sep
 
 | Reporte | Agrupa por | Columnas |
 |---------|-----------|----------|
-| Saldo por proyecto | proyecto, moneda | ingresos, gastos, salidas, saldo |
+| Saldo por proyecto | proyecto, moneda — **todos los proyectos**, tengan movimientos o no | ingresos, gastos, salidas, saldo (negativo en rojo) |
 | Saldo por proyecto y empresa | proyecto, empresa, moneda | ingresos, gastos, salidas, saldo |
 | Historial de proyecto | movimiento, por fecha | fecha, tipo, empresa, cuenta, forma, bruto, %, gasto, neto, salida, saldo acumulado |
 | Saldo por cuenta | empresa, cuenta | tipo, moneda, (saldo anterior con periodo), entradas, salidas, saldo; totales de cajas, bancos y general por moneda |

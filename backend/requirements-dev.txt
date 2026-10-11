@@ -22,6 +22,15 @@ bcrypt==5.0.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
+boto3==1.43.111
+    # via
+    #   -c requirements.txt
+    #   -r requirements.in
+botocore==1.43.111
+    # via
+    #   -c requirements.txt
+    #   boto3
+    #   s3transfer
 certifi==2026.7.22
     # via
     #   httpcore
@@ -77,6 +86,11 @@ idna==3.20
     #   httpx
 iniconfig==2.3.1
     # via pytest
+jmespath==1.1.0
+    # via
+    #   -c requirements.txt
+    #   boto3
+    #   botocore
 limits==5.8.0
     # via
     #   -c requirements.txt
@@ -138,6 +152,10 @@ pyjwt==2.15.1
     #   -r requirements.in
 pytest==9.1.1
     # via -r requirements-dev.in
+python-dateutil==2.9.0.post0
+    # via
+    #   -c requirements.txt
+    #   botocore
 python-dotenv==1.2.4
     # via
     #   -c requirements.txt
@@ -156,6 +174,14 @@ reportlab==5.0.1
     # via
     #   -c requirements.txt
     #   -r requirements.in
+s3transfer==0.19.2
+    # via
+    #   -c requirements.txt
+    #   boto3
+six==1.17.0
+    # via
+    #   -c requirements.txt
+    #   python-dateutil
 slowapi==0.1.10
     # via
     #   -c requirements.txt
@@ -192,6 +218,10 @@ tzdata==2026.5
     #   -c requirements.txt
     #   -r requirements.in
     #   psycopg
+urllib3==2.8.0
+    # via
+    #   -c requirements.txt
+    #   botocore
 uvicorn==0.54.0
     # via
     #   -c requirements.txt

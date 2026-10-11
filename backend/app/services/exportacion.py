@@ -1,5 +1,6 @@
 import csv
 import io
+from html import escape
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
@@ -94,10 +95,12 @@ def a_xlsx(reporte: Reporte) -> bytes:
         celda.font = Font(bold=True)
     for fila in reporte.filas:
         hoja.append([_celda_excel(fila.get(clave)) for clave, _ in reporte.columnas])
+        _rojo_si_negativo(hoja[hoja.max_row])
     for totales in _filas_totales(reporte):
         hoja.append([_celda_excel(v) for v in totales])
         for celda in hoja[hoja.max_row]:
             celda.font = Font(bold=True)
+        _rojo_si_negativo(hoja[hoja.max_row], negritas=True)
     for columna in hoja.columns:
         ancho = max(len(_texto(c.value)) for c in columna)
         hoja.column_dimensions[columna[0].column_letter].width = min(max(ancho + 2, 10), 60)
@@ -110,12 +113,31 @@ def a_xlsx(reporte: Reporte) -> bytes:
     return buffer.getvalue()
 
 
+ROJO = "C00000"
+
+
+def _negativo(valor: Any) -> bool:
+    return isinstance(valor, (Decimal, int, float)) and not isinstance(valor, bool) and valor < 0
+
+
+def _rojo_si_negativo(celdas, negritas: bool = False) -> None:
+    """Los saldos negativos (p. ej. un proyecto que usó dinero de otros) van en rojo."""
+    for celda in celdas:
+        if _negativo(celda.value):
+            celda.font = Font(color=ROJO, bold=negritas)
+
+
 def _celda_excel(valor: Any) -> Any:
     if isinstance(valor, datetime):
         return valor.replace(tzinfo=None)
     if isinstance(valor, (dict, list)):
         return str(valor)
     return valor
+
+
+def _pdf(valor: Any) -> str:
+    texto = escape(_texto(valor))
+    return f'<font color="#{ROJO}">{texto}</font>' if _negativo(valor) else texto
 
 
 def a_pdf(reporte: Reporte) -> bytes:
@@ -131,9 +153,9 @@ def a_pdf(reporte: Reporte) -> bytes:
 
     datos = [[Paragraph(f"<b>{etiqueta}</b>", celda) for _, etiqueta in reporte.columnas]]
     for fila in reporte.filas:
-        datos.append([Paragraph(_texto(fila.get(clave)), celda) for clave, _ in reporte.columnas])
+        datos.append([Paragraph(_pdf(fila.get(clave)), celda) for clave, _ in reporte.columnas])
     for totales in _filas_totales(reporte):
-        datos.append([Paragraph(f"<b>{_texto(v)}</b>", celda) for v in totales])
+        datos.append([Paragraph(f"<b>{_pdf(v)}</b>", celda) for v in totales])
     if len(datos) == 1:
         datos.append([Paragraph("Sin registros", celda)] + [""] * (len(reporte.columnas) - 1))
 

@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useRef,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -8,7 +9,7 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import { cn } from "../lib/cn";
-import { dinero } from "../lib/format";
+import { dinero, formatearMientrasEscribe } from "../lib/format";
 
 // Interfaz en blanco y negro: el énfasis se logra con negro sólido, bordes y peso de la letra.
 
@@ -338,11 +339,11 @@ export function PieModal({ children }: { children: ReactNode }) {
 }
 
 // ------------------------------------------------------------------ montos
-/** Monto con su moneda. Los negativos van entre paréntesis y en negritas (no hay color). */
+/** Monto con su moneda. Los negativos van entre paréntesis, en negritas y en rojo (único color de la interfaz). */
 export function Monto({ valor, moneda, className }: { valor: string | number | null | undefined; moneda?: string; className?: string }) {
   const negativo = Number(valor ?? 0) < 0;
   return (
-    <span className={cn("tabular-nums whitespace-nowrap", negativo && "font-semibold", className)}>
+    <span className={cn("tabular-nums whitespace-nowrap", className, negativo && "font-semibold text-red-600")}>
       {negativo ? `(${dinero(Math.abs(Number(valor)), moneda)})` : dinero(valor, moneda)}
     </span>
   );
@@ -404,6 +405,69 @@ export function Dato({ etiqueta, children }: { etiqueta: string; children: React
     <div>
       <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">{etiqueta}</p>
       <div className="mt-0.5 text-sm text-black">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Campo de monto: pone el separador de miles mientras se escribe ("1234567.5" → "1,234,567.5")
+ * y conserva la posición del cursor. El valor tiene comas: usar montoParaApi() antes de enviarlo.
+ */
+export function InputMonto({ value, onChange, className, ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & {
+  value: string;
+  onChange: (valor: string) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const cursor = useRef<number | null>(null);
+
+  useEffect(() => {
+    // Después de reformatear, el cursor queda después del mismo número de dígitos que tenía antes.
+    const input = ref.current;
+    if (input && cursor.current !== null && document.activeElement === input) {
+      let digitos = cursor.current;
+      let pos = 0;
+      while (pos < value.length && digitos > 0) {
+        if (/[\d.]/.test(value[pos])) digitos--;
+        pos++;
+      }
+      input.setSelectionRange(pos, pos);
+      cursor.current = null;
+    }
+  }, [value]);
+
+  return (
+    <input
+      ref={ref}
+      inputMode="decimal"
+      autoComplete="off"
+      className={cn(CAMPO, "tabular-nums", className)}
+      value={value}
+      onChange={(e) => {
+        const antes = e.target.value.slice(0, e.target.selectionStart ?? e.target.value.length);
+        cursor.current = antes.replace(/[^\d.]/g, "").length;
+        onChange(formatearMientrasEscribe(e.target.value));
+      }}
+      {...props}
+    />
+  );
+}
+
+/** Casilla de verificación con su texto. */
+export function Casilla({ checked, onChange, children, ayuda }: {
+  checked: boolean;
+  onChange: (valor: boolean) => void;
+  children: ReactNode;
+  ayuda?: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <div className="flex items-start gap-2.5">
+      <input id={id} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 size-4 rounded border-neutral-400 accent-black" />
+      <label htmlFor={id} className="text-sm text-black">
+        {children}
+        {ayuda && <span className="block text-xs text-neutral-500">{ayuda}</span>}
+      </label>
     </div>
   );
 }

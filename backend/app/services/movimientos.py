@@ -2,10 +2,9 @@
 
 - La cuenta debe ser de la empresa indicada y estar activa; efectivo → caja, transferencia → banco.
 - La empresa se vincula al proyecto automáticamente si aún no lo estaba.
-- El dinero de un proyecto queda en la empresa donde entró: una salida solo puede usar el saldo que el proyecto
-  tiene en esa empresa y moneda (y la cuenta debe tener saldo).
-- Después de cada alta, edición o anulación ninguna cuenta, ni el saldo de un proyecto en una empresa, puede
-  quedar en negativo.
+- Un proyecto puede quedar en negativo: si tuvo pérdida, se paga con dinero de otros proyectos que está en
+  la misma cuenta. La cuenta sí debe alcanzar (es dinero físico): después de cada alta, edición o anulación
+  ninguna cuenta puede quedar en negativo.
 - Nada se borra: se anula con motivo. Todo queda en la bitácora.
 """
 
@@ -24,9 +23,9 @@ from app.services.bitacora import instantanea, registrar
 from app.services.saldos import bloquear, validar_no_negativos
 
 CAMPOS_ENTRADA = ("proyecto_id", "empresa_id", "cuenta_id", "moneda", "fecha", "forma", "monto", "porcentaje_gasto",
-                  "monto_gasto", "monto_neto", "concepto", "referencia")
+                  "monto_gasto", "monto_neto", "concepto", "referencia", "requiere_factura")
 CAMPOS_SALIDA = ("proyecto_id", "empresa_id", "cuenta_id", "moneda", "fecha", "forma", "monto", "concepto",
-                 "beneficiario")
+                 "beneficiario", "requiere_factura")
 Movimiento = Entrada | Salida
 
 
@@ -90,7 +89,7 @@ def crear_salida(db: Session, datos: SalidaCrear, usuario: Usuario) -> Salida:
     vincular(db, cuenta.empresa, proyecto, usuario, automatico=True)
     salida = Salida(**datos.model_dump(), moneda=cuenta.moneda, creado_por=usuario.id)
     db.add(salida)
-    validar_no_negativos(db, cuenta_ids={cuenta.id}, proyectos={(proyecto.id, cuenta.empresa_id, cuenta.moneda)})
+    validar_no_negativos(db, cuenta_ids={cuenta.id})
     registrar(db, usuario_id=usuario.id, entidad="Salida", entidad_id=salida.id, accion=AccionBitacora.CREAR,
               detalle={"despues": instantanea(salida, CAMPOS_SALIDA)})
     db.commit()
@@ -103,7 +102,7 @@ def _campos(mov: Movimiento) -> tuple[str, tuple[str, ...]]:
 
 
 def _validar_saldos(db: Session, mov: Movimiento) -> None:
-    validar_no_negativos(db, cuenta_ids={mov.cuenta_id}, proyectos={(mov.proyecto_id, mov.empresa_id, mov.moneda)})
+    validar_no_negativos(db, cuenta_ids={mov.cuenta_id})
 
 
 def editar(db: Session, mov: Movimiento, cambios: dict[str, Any], usuario: Usuario) -> Movimiento:
@@ -114,7 +113,8 @@ def editar(db: Session, mov: Movimiento, cambios: dict[str, Any], usuario: Usuar
         raise ReglaNegocio("No se indicó ningún cambio")
     if cambios.get("fecha"):
         validar_no_futura(cambios["fecha"])
-    obligatorios = {"fecha", "monto", "porcentaje_gasto", "concepto" if isinstance(mov, Salida) else ""}
+    obligatorios = {"fecha", "monto", "porcentaje_gasto", "requiere_factura",
+                    "concepto" if isinstance(mov, Salida) else ""}
     if nulos := sorted(c for c in obligatorios if c in cambios and cambios[c] is None):
         raise ReglaNegocio(f"Estos campos no pueden quedar vacíos: {', '.join(nulos)}")
     entidad, campos = _campos(mov)

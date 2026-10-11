@@ -1,4 +1,5 @@
 import os
+import tempfile
 from pathlib import Path
 
 from dotenv import dotenv_values
@@ -34,6 +35,10 @@ os.environ["DATABASE_URL"] = URL_PRUEBAS
 os.environ["SECRET_KEY"] = "pruebas-" + "x" * 40
 os.environ["ENVIRONMENT"] = "test"
 os.environ["RATE_LIMIT_ENABLED"] = "false"
+# Facturas en una carpeta temporal.
+os.environ["ALMACENAMIENTO"] = "local"
+os.environ["ARCHIVOS_DIR"] = tempfile.mkdtemp(prefix="facturas_test_")
+os.environ["MAX_DOCUMENTO_MB"] = "1"
 # Sin superusuario automático: cada prueba crea los usuarios que necesita.
 os.environ["SUPERUSUARIO_CORREO"] = ""
 os.environ["SUPERUSUARIO_PASSWORD"] = ""

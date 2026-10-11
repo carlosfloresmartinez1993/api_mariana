@@ -1,4 +1,7 @@
+from io import BytesIO
+
 import pytest
+from openpyxl import load_workbook
 
 from tests.helpers import crear_cuenta, crear_empresa, crear_proyecto, entrada, ok, salida
 
@@ -167,3 +170,23 @@ def test_exportaciones(client, datos, formato, tipo):
 def test_periodo_invertido(client, datos):
     r = client.get("/reportes/gastos", params={"desde": "2026-03-01", "hasta": "2026-01-01"}, headers=datos["h"])
     assert r.status_code == 422
+
+
+def test_saldo_por_proyecto_incluye_los_proyectos_sin_movimientos(client, datos):
+    crear_proyecto(client, datos["h"], "Bodega")
+    r = _reporte(client, datos["h"], "saldos-proyectos")
+    bodega = next(f for f in r["filas"] if f["proyecto"] == "Bodega")
+    assert (bodega["moneda"], bodega["saldo"]) == (None, "0.00")
+    assert {t["moneda"] for t in r["totales"]} == {"MXN", "USD"}  # no suma una moneda vacia
+
+
+def test_saldo_negativo_en_el_reporte_y_en_rojo_al_exportar(client, datos):
+    h = datos["h"]
+    salida(client, h, datos["casa"], datos["norte_banco"], "5000", concepto="Pagado con dinero de Torre")
+    r = _reporte(client, h, "saldos-proyectos")
+    assert _por(r["filas"], "proyecto", "moneda")[("Casa", "MXN")]["saldo"] == "-3000.00"
+    xlsx = client.get("/reportes/saldos-proyectos", params={"formato": "xlsx"}, headers=h)
+    hoja = load_workbook(BytesIO(xlsx.content)).active
+    rojas = [c.value for fila in hoja.iter_rows() for c in fila if c.font and c.font.color and c.font.color.rgb
+             and str(c.font.color.rgb).endswith("C00000")]
+    assert -3000 in rojas

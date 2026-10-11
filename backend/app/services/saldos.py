@@ -2,7 +2,7 @@
 
 Cuenta:            entradas.monto_neto − salidas.monto  (no hay saldo inicial: todo entra por un proyecto)
 Proyecto:          por empresa y moneda, ingresos (entradas.monto_neto) − salidas; gastos = entradas.monto_gasto.
-                   El dinero de un proyecto está en una empresa: solo puede salir de una cuenta de esa empresa.
+                   Puede quedar en negativo (lo cubre el dinero de otros proyectos en la misma cuenta).
 Cuadre (siempre):  por empresa y moneda,  Σ saldo de las cuentas = Σ saldos de los proyectos.
 """
 
@@ -16,7 +16,7 @@ from sqlalchemy import Select, func, select, union_all
 from sqlalchemy.orm import Session
 
 from app.core.errors import ReglaNegocio
-from app.models import Cuenta, Empresa, Entrada, Moneda, Proyecto, Salida
+from app.models import Cuenta, Entrada, Moneda, Proyecto, Salida
 
 CERO = Decimal("0.00")
 
@@ -111,11 +111,6 @@ def totales_proyectos(db: Session, proyecto_ids: list[uuid.UUID] | None = None, 
     return dict(totales)
 
 
-def saldo_proyecto_en_empresa(db: Session, proyecto_id: uuid.UUID, empresa_id: uuid.UUID, moneda: Moneda) -> Decimal:
-    t = totales_por_empresa(db, [proyecto_id], empresa_id=empresa_id).get((proyecto_id, empresa_id, moneda))
-    return t.saldo if t else CERO
-
-
 # ------------------------------------------------------------------ validación de saldos
 def bloquear(db: Session, *, proyecto_ids: set[uuid.UUID] = frozenset(), cuenta_ids: set[uuid.UUID] = frozenset()) -> None:
     """SELECT … FOR UPDATE sobre los proyectos y cuentas afectados, siempre en el mismo orden.
@@ -129,19 +124,12 @@ def bloquear(db: Session, *, proyecto_ids: set[uuid.UUID] = frozenset(), cuenta_
         db.execute(select(Cuenta.id).where(Cuenta.id.in_(cuenta_ids)).order_by(Cuenta.id).with_for_update())
 
 
-def validar_no_negativos(db: Session, *, cuenta_ids: set[uuid.UUID] = frozenset(),
-                         proyectos: set[Clave] = frozenset()) -> None:
-    """Después de aplicar un cambio (ya con flush): ninguna cuenta, ni el saldo de un proyecto en una empresa,
-    puede quedar en negativo."""
+def validar_no_negativos(db: Session, *, cuenta_ids: set[uuid.UUID]) -> None:
+    """Después de aplicar un cambio (ya con flush): ninguna cuenta puede quedar en negativo.
+
+    Los proyectos sí pueden: un proyecto con pérdida se paga con el dinero de otros que está en la cuenta.
+    """
     db.flush()
-    for pid, eid, moneda in proyectos:
-        saldo = saldo_proyecto_en_empresa(db, pid, eid, moneda)
-        if saldo < 0:
-            proyecto, empresa = db.get(Proyecto, pid), db.get(Empresa, eid)
-            raise ReglaNegocio(
-                f"Saldo insuficiente: el proyecto «{proyecto.nombre}» quedaría en {saldo:,.2f} {moneda} "
-                f"en {empresa.nombre}. El dinero de un proyecto solo puede salir de la empresa donde entró."
-            )
     if cuenta_ids:
         for cid, saldo in saldos_cuentas(db, list(cuenta_ids)).items():
             if saldo < 0:

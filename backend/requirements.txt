@@ -12,6 +12,12 @@ anyio==4.15.1
     #   watchfiles
 bcrypt==5.0.0
     # via -r requirements.in
+boto3==1.43.111
+    # via -r requirements.in
+botocore==1.43.111
+    # via
+    #   boto3
+    #   s3transfer
 charset-normalizer==3.5.2
     # via reportlab
 click==8.5.0
@@ -34,6 +40,10 @@ idna==3.20
     # via
     #   anyio
     #   email-validator
+jmespath==1.1.0
+    # via
+    #   boto3
+    #   botocore
 limits==5.8.0
     # via slowapi
 mako==1.4.3
@@ -63,6 +73,8 @@ pydantic-settings==2.15.0
     # via -r requirements.in
 pyjwt==2.15.1
     # via -r requirements.in
+python-dateutil==2.9.0.post0
+    # via botocore
 python-dotenv==1.2.4
     # via
     #   pydantic-settings
@@ -73,6 +85,10 @@ pyyaml==6.0.3
     # via uvicorn
 reportlab==5.0.1
     # via -r requirements.in
+s3transfer==0.19.2
+    # via boto3
+six==1.17.0
+    # via python-dateutil
 slowapi==0.1.10
     # via -r requirements.in
 sqlalchemy==2.1.4
@@ -101,6 +117,8 @@ tzdata==2026.5
     # via
     #   -r requirements.in
     #   psycopg
+urllib3==2.8.0
+    # via botocore
 uvicorn==0.54.0
     # via -r requirements.in
 uvloop==0.23.0 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'
