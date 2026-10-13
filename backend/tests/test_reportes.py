@@ -77,25 +77,51 @@ def test_cuadre_cuentas_contra_proyectos(client, datos):
     assert [(f["empresa"], f["moneda"], f["cuentas"]) for f in al_corte["filas"] if f["cuentas"] != "0.00"] ==         [("Norte", "MXN", "9700.00")]
 
 
-def test_historial_del_proyecto_con_saldo_acumulado(client, datos):
+def test_historial_es_un_resumen_de_ingresos_y_egresos(client, datos):
     r = _reporte(client, datos["h"], f"historial-proyecto/{datos['torre']['id']}")
-    filas = r["filas"]
-    assert [(f["tipo"], f["empresa"], f["cuenta"], f["moneda"], f["saldo"]) for f in filas] == [
-        ("Entrada", "Norte", "BBVA MXN", "MXN", "9700.00"),
-        ("Entrada", "Sur", "Banorte MXN", "MXN", "14600.00"),
-        ("Entrada", "Sur", "Banorte USD", "USD", "990.00"),
-        ("Salida", "Norte", "BBVA MXN", "MXN", "13100.00"),
+    assert r["estilo"] == "resumen"
+    assert [c["clave"] for c in r["columnas"]] == ["concepto", "MXN", "USD"]
+    filas = [(f["estilo"], f["concepto"].split(" (")[0], f["MXN"], f["USD"]) for f in r["filas"]]
+    assert filas == [
+        ("seccion", "INGRESOS", None, None),
+        ("ingreso", "Entrada", "9700.00", None),
+        ("ingreso", "Entrada", "4900.00", None),
+        ("ingreso", "Entrada", None, "990.00"),
+        ("total", "TOTAL INGRESOS", "14600.00", "990.00"),
+        ("seccion", "EGRESOS", None, None),
+        ("egreso", "Pago a proveedor", "1500.00", None),
+        ("total", "TOTAL EGRESOS", "1500.00", "0.00"),
+        ("resultado", "RESULTADO NETO DEL PROYECTO", "13100.00", "990.00"),
     ]
-    assert filas[0]["gasto"] == "300.00" and filas[0]["bruto"] == "10000.00"
-    assert filas[0]["registrado_por"] == "Juan"
-    totales = _por(r["totales"], "moneda")
-    assert totales[("MXN",)]["entrada"] == "14600.00" and totales[("MXN",)]["saldo"] == "13100.00"
+    primera = r["filas"][1]
+    assert "bruto 10,000.00, gasto 3.00 %" in primera["concepto"]
+    assert primera["detalle"] == "10/01/2026 · Norte · BBVA MXN"
 
 
 def test_historial_con_periodo_empieza_con_el_saldo_anterior(client, datos):
     r = _reporte(client, datos["h"], f"historial-proyecto/{datos['torre']['id']}", desde="2026-02-01")
-    assert r["filas"][0]["tipo"] == "Saldo anterior" and r["filas"][0]["saldo"] == "9700.00"
-    assert r["filas"][-1]["saldo"] == "13100.00"
+    assert (r["filas"][0]["estilo"], r["filas"][0]["MXN"]) == ("saldo", "9700.00")
+    assert r["filas"][-1]["MXN"] == "13100.00"  # 9700 + 4900 - 1500
+
+
+def test_historial_solo_con_las_monedas_usadas(client, datos):
+    r = _reporte(client, datos["h"], f"historial-proyecto/{datos['casa']['id']}")
+    assert [c["clave"] for c in r["columnas"]] == ["concepto", "MXN"]
+    assert r["filas"][-1]["MXN"] == "2000.00"
+
+
+def test_historial_en_excel_con_formato(client, datos):
+    xlsx = client.get(f"/reportes/historial-proyecto/{datos['torre']['id']}", params={"formato": "xlsx"},
+                      headers=datos["h"])
+    hoja = load_workbook(BytesIO(xlsx.content)).active
+    valores = {c.value: c for fila in hoja.iter_rows() for c in fila if isinstance(c.value, str)}
+    assert hoja["A1"].value.startswith("Resumen de ingresos y egresos")
+    assert str(valores["Concepto"].fill.fgColor.rgb).endswith("0E1A33")
+    assert str(valores["TOTAL INGRESOS"].fill.fgColor.rgb).endswith("F2F0EB")
+    assert str(valores["RESULTADO NETO DEL PROYECTO"].fill.fgColor.rgb).endswith("0E1A33")
+    verdes = [c.value for fila in hoja.iter_rows() for c in fila
+              if c.font and c.font.color and str(c.font.color.rgb).endswith("008000")]
+    assert 9700 in verdes
 
 
 def test_saldo_por_cuenta_con_totales_de_cajas_y_bancos(client, datos):

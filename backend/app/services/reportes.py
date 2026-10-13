@@ -104,54 +104,63 @@ def saldos_proyectos(db: Session, *, desde: date | None = None, hasta: date | No
 
 def historial_proyecto(db: Session, proyecto: Proyecto, *, desde: date | None = None, hasta: date | None = None,
                        empresa_id: uuid.UUID | None = None) -> Reporte:
-    """Todas las entradas y salidas del proyecto, con la cuenta a la que llegaron o de la que salieron,
-    y el saldo acumulado por moneda. Con `desde`, empieza con el saldo anterior."""
+    """Resumen de ingresos y egresos del proyecto: una fila por entrada (neto) y por salida, una columna por
+    moneda, totales y resultado neto. Con `desde`, empieza con el saldo anterior.
+
+    Cada fila lleva `estilo` (seccion, ingreso, egreso, total, resultado, saldo) para darle formato.
+    """
     entradas = select(Entrada).where(Entrada.proyecto_id == proyecto.id, Entrada.anulado.is_(False))
     salidas = select(Salida).where(Salida.proyecto_id == proyecto.id, Salida.anulado.is_(False))
     if empresa_id:
         entradas = entradas.where(Entrada.empresa_id == empresa_id)
         salidas = salidas.where(Salida.empresa_id == empresa_id)
+    lista_entradas = sorted(db.scalars(_periodo(entradas, Entrada.fecha, desde, hasta)).unique(),
+                            key=lambda m: (m.fecha, m.fecha_creacion))
+    lista_salidas = sorted(db.scalars(_periodo(salidas, Salida.fecha, desde, hasta)).unique(),
+                           key=lambda m: (m.fecha, m.fecha_creacion))
+    anteriores = (totales_proyectos(db, [proyecto.id], empresa_id=empresa_id, hasta=desde - timedelta(days=1))
+                  if desde else {})
+    saldo_anterior = {m: t.saldo for (_, m), t in anteriores.items()}
 
-    saldo: dict[str, Decimal] = defaultdict(lambda: CERO)
+    usadas = {m.moneda for m in lista_entradas + lista_salidas} | set(saldo_anterior)
+    monedas = [m for m in (Moneda.MXN, Moneda.USD) if m in usadas] or [Moneda.MXN]
+
+    def detalle(mov) -> str:
+        return f"{mov.fecha:%d/%m/%Y} · {mov.empresa.nombre} · {mov.cuenta.nombre}"
+
+    def fila(estilo: str, concepto: str, montos: dict, detalle_: str | None = None) -> dict[str, Any]:
+        return {"estilo": estilo, "concepto": concepto, "detalle": detalle_, **{m.value: montos.get(m) for m in monedas}}
+
     filas: list[dict[str, Any]] = []
     if desde:
-        anteriores = totales_proyectos(db, [proyecto.id], empresa_id=empresa_id, hasta=desde - timedelta(days=1))
-        for (_, moneda), t in sorted(anteriores.items(), key=lambda x: x[0][1]):
-            saldo[moneda] = t.saldo
-            filas.append({"fecha": desde, "tipo": "Saldo anterior", "moneda": moneda, "saldo": t.saldo})
+        filas.append(fila("saldo", f"SALDO ANTERIOR AL {desde:%d/%m/%Y}", {m: saldo_anterior.get(m, CERO) for m in monedas}))
 
-    movimientos: list[tuple[date, int, Any]] = [
-        (e.fecha, 0, e) for e in db.scalars(_periodo(entradas, Entrada.fecha, desde, hasta)).unique()
-    ] + [(s.fecha, 1, s) for s in db.scalars(_periodo(salidas, Salida.fecha, desde, hasta)).unique()]
-    movimientos.sort(key=lambda m: (m[0], m[1], m[2].fecha_creacion))
+    ingresos: dict[Moneda, Decimal] = defaultdict(lambda: CERO)
+    filas.append(fila("seccion", "INGRESOS", {}))
+    for e in lista_entradas:
+        concepto = e.concepto or e.referencia or "Entrada"
+        if e.porcentaje_gasto:
+            concepto += f" (bruto {e.monto:,.2f}, gasto {e.porcentaje_gasto:.2f} %)"
+        filas.append(fila("ingreso", concepto, {e.moneda: e.monto_neto}, detalle(e)))
+        ingresos[e.moneda] += e.monto_neto
+    filas.append(fila("total", "TOTAL INGRESOS", {m: ingresos[m] for m in monedas}))
 
-    for _, _, mov in movimientos:
-        comun = {"fecha": mov.fecha, "empresa": mov.empresa.nombre, "cuenta": mov.cuenta.nombre,
-                 "moneda": mov.moneda, "forma": mov.forma, "registrado_por": mov.creado_por_nombre}
-        if isinstance(mov, Entrada):
-            saldo[mov.moneda] += mov.monto_neto
-            filas.append({**comun, "tipo": "Entrada", "concepto": mov.concepto or mov.referencia, "bruto": mov.monto,
-                          "porcentaje": mov.porcentaje_gasto, "gasto": mov.monto_gasto, "entrada": mov.monto_neto,
-                          "saldo": saldo[mov.moneda]})
-        else:
-            saldo[mov.moneda] -= mov.monto
-            concepto = f"{mov.concepto} — {mov.beneficiario}" if mov.beneficiario else mov.concepto
-            filas.append({**comun, "tipo": "Salida", "concepto": concepto, "salida": mov.monto,
-                          "saldo": saldo[mov.moneda]})
+    egresos: dict[Moneda, Decimal] = defaultdict(lambda: CERO)
+    filas.append(fila("seccion", "EGRESOS", {}))
+    for s in lista_salidas:
+        concepto = f"{s.concepto} — {s.beneficiario}" if s.beneficiario else s.concepto
+        filas.append(fila("egreso", concepto, {s.moneda: s.monto}, detalle(s)))
+        egresos[s.moneda] += s.monto
+    filas.append(fila("total", "TOTAL EGRESOS", {m: egresos[m] for m in monedas}))
 
-    movs = [f for f in filas if f["tipo"] != "Saldo anterior"]
-    totales = _totales_por_moneda(movs, ("bruto", "gasto", "entrada", "salida"), "fecha")
-    for t in totales:
-        t["saldo"] = saldo[t["moneda"]]
+    filas.append(fila("resultado", "RESULTADO NETO DEL PROYECTO",
+                      {m: saldo_anterior.get(m, CERO) + ingresos[m] - egresos[m] for m in monedas}))
     return Reporte(
-        titulo=f"Historial del proyecto {proyecto.nombre}",
-        columnas=[("fecha", "Fecha"), ("tipo", "Tipo"), ("empresa", "Empresa"), ("cuenta", "Cuenta"),
-                  ("moneda", "Moneda"), ("forma", "Forma"), ("concepto", "Concepto"), ("bruto", "Monto recibido"),
-                  ("porcentaje", "% gasto"), ("gasto", "Gasto"), ("entrada", "Entrada (neto)"),
-                  ("salida", "Salida"), ("saldo", "Saldo"), ("registrado_por", "Registrado por")],
+        titulo=f"Resumen de ingresos y egresos — {proyecto.nombre}",
+        columnas=[("concepto", "Concepto"), *[(m.value, m.value) for m in monedas]],
         filas=filas,
-        totales=totales,
         parametros=_parametros(desde, hasta, Proyecto=proyecto.nombre, Empresa=_nombre(db, Empresa, empresa_id)),
+        estilo="resumen",
     )
 
 

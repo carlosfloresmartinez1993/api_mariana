@@ -35,7 +35,7 @@ const REPORTES: Record<string, Definicion> = {
   },
   historial: {
     titulo: "Historial de un proyecto",
-    descripcion: "Todas las entradas y salidas del proyecto, a qué cuenta llegaron y de cuál salieron, con saldo acumulado.",
+    descripcion: "Resumen de ingresos (neto) y egresos del proyecto, con la fecha, empresa y cuenta de cada uno, y el resultado neto.",
     ruta: (p) => `/reportes/historial-proyecto/${p}`,
     filtros: ["proyecto", "empresa"],
     requiereProyecto: true,

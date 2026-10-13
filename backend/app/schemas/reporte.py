@@ -15,3 +15,4 @@ class ReporteOut(BaseModel):
     filas: list[dict[str, Any]]
     totales: list[dict[str, Any]] = []
     elaborado_por: str | None = None
+    estilo: str = "tabla"

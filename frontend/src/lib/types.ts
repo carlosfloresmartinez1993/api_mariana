@@ -168,6 +168,8 @@ export interface Reporte {
   filas: Record<string, unknown>[];
   totales: Record<string, unknown>[];
   elaborado_por: string | null;
+  /** "tabla" o "resumen" (estado de ingresos y egresos: cada fila trae su `estilo`). */
+  estilo: "tabla" | "resumen";
 }
 
 export interface Resumen {

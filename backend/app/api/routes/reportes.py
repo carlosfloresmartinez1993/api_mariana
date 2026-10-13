@@ -32,6 +32,7 @@ def responder(reporte: Reporte, formato: Formato, nombre: str, usuario: Usuario)
             "filas": reporte.filas,
             "totales": reporte.totales,
             "elaborado_por": reporte.elaborado_por,
+            "estilo": reporte.estilo,
         }))
     return Response(
         content=exportar(reporte, formato),
