@@ -87,7 +87,7 @@ uv pip compile requirements-dev.in --universal --python-version 3.13 -o requirem
 
 ## Despliegue
 
-- **Render**: `render.yaml` (servicio web Docker + PostgreSQL). Pide `SUPERUSUARIO_CORREO` y `SUPERUSUARIO_PASSWORD` al crear el Blueprint.
-- **Railway**: el mismo `Dockerfile` + PostgreSQL; definir `DATABASE_URL`, `SECRET_KEY`, `ENVIRONMENT=production`, `DOCS_ENABLED=false`, `FORWARDED_ALLOW_IPS=*` y `SUPERUSUARIO_*`.
+- **Railway (producción)**: `railway.json` + el mismo `Dockerfile`, PostgreSQL y un Bucket para las facturas. Paso a paso, variables, respaldos y cómo hacer cambios con datos reales: [docs/Despliegue en Railway.md](docs/Despliegue%20en%20Railway.md).
+- **Render (solo pruebas)**: `render.yaml` (servicio web Docker + PostgreSQL). Pide `SUPERUSUARIO_CORREO` y `SUPERUSUARIO_PASSWORD` al crear el Blueprint. Su base gratuita no tiene respaldos y caduca a los 30 días, y su disco se borra en cada despliegue (las facturas se pierden): no usarlo con datos reales.
 
 Al arrancar, el contenedor aplica las migraciones (`alembic upgrade head`) y levanta la API, que crea el superusuario si hace falta. La integración continua (`.github/workflows/ci.yml`) corre migraciones, `alembic check`, pruebas, el build del frontend y el de la imagen.
