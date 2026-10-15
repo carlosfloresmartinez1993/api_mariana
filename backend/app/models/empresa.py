@@ -1,11 +1,15 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     DDL,
+    CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -18,7 +22,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, UUIDPk
 from app.models.comun import Registrado
-from app.models.enums import Moneda, TipoCuenta, enum_columna
+from app.models.enums import Moneda, TipoCuenta, TipoPendiente, enum_columna
 
 
 class Empresa(UUIDPk, Registrado, Base):
@@ -32,12 +36,28 @@ class Empresa(UUIDPk, Registrado, Base):
 
 
 class Proyecto(UUIDPk, Registrado, Base):
+    """Las proyecciones (estimados) son opcionales y no afectan ningún saldo: sirven para comparar con lo real."""
+
     __tablename__ = "proyectos"
-    __table_args__ = (Index("uq_proyectos_nombre", func.lower(text("nombre")), unique=True),)
+    __table_args__ = (
+        Index("uq_proyectos_nombre", func.lower(text("nombre")), unique=True),
+        CheckConstraint("estimado_ingresos_mxn >= 0 AND estimado_gastos_mxn >= 0 AND estimado_ingresos_usd >= 0 "
+                        "AND estimado_gastos_usd >= 0 AND trabajadores_estimados >= 0", name="estimados_no_negativos"),
+        CheckConstraint("fecha_fin_estimada >= fecha_inicio_estimada", name="fechas_estimadas"),
+    )
 
     nombre: Mapped[str] = mapped_column(String(200))
     descripcion: Mapped[str | None] = mapped_column(Text)
     activo: Mapped[bool] = mapped_column(default=True, server_default=true())
+
+    # Proyecciones (opcionales)
+    estimado_ingresos_mxn: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    estimado_gastos_mxn: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    estimado_ingresos_usd: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    estimado_gastos_usd: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    trabajadores_estimados: Mapped[int | None]
+    fecha_inicio_estimada: Mapped[date | None] = mapped_column(Date)
+    fecha_fin_estimada: Mapped[date | None] = mapped_column(Date)
 
     empresas: Mapped[list[Empresa]] = relationship(secondary="empresa_proyecto", order_by=Empresa.nombre,
                                                    viewonly=True)
@@ -105,3 +125,43 @@ CREATE TRIGGER trg_cuenta_inmutable
 """
 
 event.listen(Cuenta.__table__, "after_create", DDL(CUENTA_INMUTABLE_SQL))
+
+
+class Categoria(UUIDPk, Registrado, Base):
+    """Categoría opcional de entradas y salidas (una sola lista para ambas)."""
+
+    __tablename__ = "categorias"
+    __table_args__ = (Index("uq_categorias_nombre", func.lower(text("nombre")), unique=True),)
+
+    nombre: Mapped[str] = mapped_column(String(100))
+    descripcion: Mapped[str | None] = mapped_column(String(255))
+    activa: Mapped[bool] = mapped_column(default=True, server_default=true())
+
+
+class Pendiente(UUIDPk, Registrado, Base):
+    """Cuenta por cobrar o por pagar de un proyecto. No afecta saldos: al cobrar o pagar se registra la entrada
+    o salida como siempre y la partida se marca como liquidada."""
+
+    __tablename__ = "pendientes"
+    __table_args__ = (
+        CheckConstraint("monto > 0", name="monto_positivo"),
+        CheckConstraint("liquidada OR fecha_liquidacion IS NULL", name="liquidacion_coherente"),
+        Index("ix_pendientes_proyecto_tipo", "proyecto_id", "tipo"),
+    )
+
+    proyecto_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("proyectos.id", ondelete="RESTRICT"))
+    tipo: Mapped[TipoPendiente] = mapped_column(enum_columna(TipoPendiente, "tipo_pendiente", 12))
+    concepto: Mapped[str] = mapped_column(String(255))
+    contraparte: Mapped[str | None] = mapped_column(String(200))  # cliente o proveedor
+    moneda: Mapped[Moneda] = mapped_column(enum_columna(Moneda, "moneda", 3))
+    monto: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    fecha_vencimiento: Mapped[date | None] = mapped_column(Date)
+    liquidada: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
+    fecha_liquidacion: Mapped[date | None] = mapped_column(Date)
+    nota: Mapped[str | None] = mapped_column(Text)
+
+    proyecto: Mapped[Proyecto] = relationship(lazy="joined", innerjoin=True)
+
+    @property
+    def proyecto_nombre(self) -> str:
+        return self.proyecto.nombre

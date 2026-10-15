@@ -17,6 +17,8 @@ interface Definicion {
   requiereProyecto?: boolean;
   /** Solo usa la fecha «Hasta» (saldo al corte). */
   soloCorte?: boolean;
+  /** No usa fechas (p. ej. proyecciones o cuentas pendientes). */
+  sinPeriodo?: boolean;
 }
 
 const REPORTES: Record<string, Definicion> = {
@@ -28,7 +30,7 @@ const REPORTES: Record<string, Definicion> = {
   },
   "saldos-proyectos-empresa": {
     titulo: "Saldo por proyecto y empresa",
-    descripcion: "Cuánto tiene cada proyecto en cada empresa. El dinero de un proyecto solo puede salir de la empresa donde entró.",
+    descripcion: "Cuánto tiene cada proyecto en cada empresa. Un saldo negativo indica que usó dinero de otros proyectos.",
     ruta: () => "/reportes/saldos-proyectos",
     fijos: { por_empresa: true },
     filtros: ["empresa", "proyecto"],
@@ -52,6 +54,33 @@ const REPORTES: Record<string, Definicion> = {
     ruta: () => "/reportes/cuadre",
     filtros: ["empresa"],
     soloCorte: true,
+  },
+  "por-categoria": {
+    titulo: "Por categoría",
+    descripcion: "Entradas (neto) y salidas de cada categoría. Los movimientos sin categoría van al final.",
+    ruta: () => "/reportes/por-categoria",
+    filtros: ["empresa", "proyecto"],
+  },
+  "por-proyecto-categoria": {
+    titulo: "Por proyecto y categoría",
+    descripcion: "En qué categorías entró y salió el dinero de cada proyecto.",
+    ruta: () => "/reportes/por-categoria",
+    fijos: { por_proyecto: true },
+    filtros: ["empresa", "proyecto"],
+  },
+  "estimado-vs-real": {
+    titulo: "Estimado contra real",
+    descripcion: "Proyecciones de cada proyecto (ingresos, gastos, trabajadores y fechas) contra lo real, con cuentas por cobrar y por pagar pendientes.",
+    ruta: () => "/reportes/estimado-vs-real",
+    filtros: ["proyecto"],
+    sinPeriodo: true,
+  },
+  "cuentas-por-cobrar-pagar": {
+    titulo: "Cuentas por cobrar y por pagar",
+    descripcion: "Partidas pendientes de todos los proyectos, con vencimiento. No afectan saldos.",
+    ruta: () => "/reportes/cuentas-por-cobrar-pagar",
+    filtros: ["proyecto"],
+    sinPeriodo: true,
   },
   "gastos-acumulados": {
     titulo: "Gastos acumulados",
@@ -101,8 +130,8 @@ export default function Reportes() {
 
   const query: Query = {
     ...def.fijos,
-    desde: def.soloCorte ? undefined : filtros.desde,
-    hasta: filtros.hasta,
+    desde: def.soloCorte || def.sinPeriodo ? undefined : filtros.desde,
+    hasta: def.sinPeriodo ? undefined : filtros.hasta,
     empresa_id: def.filtros.includes("empresa") ? filtros.empresa_id : undefined,
     proyecto_id: def.filtros.includes("proyecto") && !def.requiereProyecto ? filtros.proyecto_id : undefined,
     moneda: def.filtros.includes("moneda") ? filtros.moneda : undefined,
@@ -131,11 +160,12 @@ export default function Reportes() {
             )}
           </Campo>
           <Campo etiqueta="Desde">
-            {(id) => <Input id={id} type="date" value={def.soloCorte ? "" : filtros.desde} disabled={def.soloCorte}
+            {(id) => <Input id={id} type="date" value={def.soloCorte || def.sinPeriodo ? "" : filtros.desde} disabled={def.soloCorte || def.sinPeriodo}
               onChange={(e) => cambiar({ desde: e.target.value })} />}
           </Campo>
           <Campo etiqueta="Hasta">
-            {(id) => <Input id={id} type="date" value={filtros.hasta} onChange={(e) => cambiar({ hasta: e.target.value })} />}
+            {(id) => <Input id={id} type="date" value={def.sinPeriodo ? "" : filtros.hasta} disabled={def.sinPeriodo}
+              onChange={(e) => cambiar({ hasta: e.target.value })} />}
           </Campo>
           {def.filtros.includes("proyecto") && (
             <Campo etiqueta={def.requiereProyecto ? "Proyecto *" : "Proyecto"}>

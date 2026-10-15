@@ -1,6 +1,6 @@
 # Control de Empresas y Proyectos — Análisis y modelo de datos
 
-Versión 1.2 · 11 de octubre de 2026 · Implementado (sin traspasos ni saldo inicial; proyectos pueden quedar en negativo; facturas opcionales) · Stack: ver `Stack tecnológico - Control de Clientes.docx` (api-bancaria). Interfaz en blanco y negro.
+Versión 1.3 · 14 de octubre de 2026 · Implementado (sin traspasos ni saldo inicial; proyectos pueden quedar en negativo; facturas opcionales) · Stack: ver `Stack tecnológico - Control de Clientes.docx` (api-bancaria). Interfaz en blanco y negro.
 
 ## 1. Módulos
 
@@ -55,6 +55,11 @@ Versión 1.2 · 11 de octubre de 2026 · Implementado (sin traspasos ni saldo in
 - R18. **Un proyecto puede quedar en negativo.** Si un proyecto tuvo pérdida, se registra la salida a su nombre aunque no tenga saldo: el dinero sale de la cuenta, donde está el de los otros proyectos. Lo único que se valida es que **la cuenta** alcance (es dinero físico). Lo mismo al editar o anular. Los saldos negativos se muestran en rojo en pantallas, reportes, Excel y PDF.
 - R18b. **Factura (opcional)**: entradas y salidas tienen la casilla «requiere factura» y un archivo de factura opcional (PDF, XML, JPG o PNG; se valida por contenido; máximo `MAX_DOCUMENTO_MB`). Se guarda en una carpeta local o en un bucket S3 (`ALMACENAMIENTO`); la BD guarda solo la ruta. Subir o quitar la factura queda en la bitácora. Las listas se filtran por factura requerida, pendiente, adjunta o sin factura.
 
+### Categorías, proyecciones y cuentas por cobrar / pagar
+- R18c. **Categorías** (una sola lista para entradas y salidas, se administran en su propia pantalla). Son opcionales en cada movimiento; una categoría desactivada ya no se ofrece pero los movimientos la conservan.
+- R18d. **Proyecciones del proyecto** (todas opcionales): ingresos y gastos estimados en MXN y en USD, trabajadores estimados, fechas estimadas de inicio y terminación. **No afectan saldos**; se comparan contra lo real (ingresos netos y salidas).
+- R18e. **Cuentas por cobrar y por pagar**: partidas por proyecto (concepto, cliente o proveedor, moneda, monto, vencimiento, nota, liquidada). **No afectan saldos**: al cobrar o pagar se registra la entrada o salida y la partida se marca como liquidada. Se pueden editar y eliminar (queda en la bitácora).
+
 ### Sin traspasos
 - R19. No hay traspasos entre cuentas. Para llevar efectivo de la caja al banco se registra una **salida de la caja** y una **entrada sin %** al banco, del mismo proyecto y empresa.
 - R20. **Cuadre**: por empresa y moneda, siempre se cumple `Σ entradas (neto) − Σ salidas = Σ saldo de las cuentas = Σ saldo de los proyectos`. El reporte «Cuadre» lo muestra.
@@ -87,6 +92,9 @@ Todos aceptan `fecha_desde` y `fecha_hasta` opcionales (sin periodo = todo), sep
 | Historial de proyecto | movimiento, por fecha | fecha, tipo, empresa, cuenta, forma, bruto, %, gasto, neto, salida, saldo acumulado |
 | Saldo por cuenta | empresa, cuenta | tipo, moneda, (saldo anterior con periodo), entradas, salidas, saldo; totales de cajas, bancos y general por moneda |
 | Cuadre | empresa, moneda | entradas, salidas, saldo en cuentas, saldo de proyectos, diferencia (siempre 0), estado — al corte «hasta» |
+| Por categoría (y por proyecto y categoría) | categoría, moneda | movimientos, entradas (neto), salidas, neto |
+| Estimado contra real | proyecto, moneda | estimados vs reales de ingresos y gastos, % de avance, resultado, por cobrar, por pagar, trabajadores y fechas estimadas |
+| Cuentas por cobrar y por pagar | partida | proyecto, concepto, contraparte, moneda, por cobrar / por pagar, vencimiento, estado (vencida) |
 | Gastos acumulados | moneda | total de gastos |
 | Gastos por proyecto | proyecto, moneda | gastos |
 | Gastos por empresa | empresa, moneda | gastos |

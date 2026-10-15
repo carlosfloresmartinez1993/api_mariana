@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, UUIDPk
 from app.models.comun import Anulable, ConFactura, Registrado
-from app.models.empresa import Cuenta, Empresa, Proyecto
+from app.models.empresa import Categoria, Cuenta, Empresa, Proyecto
 from app.models.enums import Forma, Moneda, enum_columna
 
 GASTO_SQL = "round(monto * porcentaje_gasto / 100, 2)"
@@ -47,7 +47,10 @@ class Entrada(UUIDPk, Registrado, Anulable, ConFactura, Base):
     concepto: Mapped[str | None] = mapped_column(String(255))
     referencia: Mapped[str | None] = mapped_column(String(100))
 
+    categoria_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("categorias.id", ondelete="RESTRICT"), index=True)
+
     proyecto: Mapped[Proyecto] = relationship(lazy="joined", innerjoin=True)
+    categoria: Mapped[Categoria | None] = relationship(lazy="joined")
     empresa: Mapped[Empresa] = relationship(lazy="joined", innerjoin=True)
     cuenta: Mapped[Cuenta] = relationship(lazy="joined", innerjoin=True, foreign_keys=[cuenta_id],
                                           primaryjoin="Entrada.cuenta_id == Cuenta.id")
@@ -55,6 +58,10 @@ class Entrada(UUIDPk, Registrado, Anulable, ConFactura, Base):
     @property
     def proyecto_nombre(self) -> str:
         return self.proyecto.nombre
+
+    @property
+    def categoria_nombre(self) -> str | None:
+        return self.categoria.nombre if self.categoria else None
 
     @property
     def empresa_nombre(self) -> str:
@@ -92,7 +99,10 @@ class Salida(UUIDPk, Registrado, Anulable, ConFactura, Base):
     concepto: Mapped[str] = mapped_column(String(255))
     beneficiario: Mapped[str | None] = mapped_column(String(200))
 
+    categoria_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("categorias.id", ondelete="RESTRICT"), index=True)
+
     proyecto: Mapped[Proyecto] = relationship(lazy="joined", innerjoin=True)
+    categoria: Mapped[Categoria | None] = relationship(lazy="joined")
     empresa: Mapped[Empresa] = relationship(lazy="joined", innerjoin=True)
     cuenta: Mapped[Cuenta] = relationship(lazy="joined", innerjoin=True, foreign_keys=[cuenta_id],
                                           primaryjoin="Salida.cuenta_id == Cuenta.id")
@@ -100,6 +110,10 @@ class Salida(UUIDPk, Registrado, Anulable, ConFactura, Base):
     @property
     def proyecto_nombre(self) -> str:
         return self.proyecto.nombre
+
+    @property
+    def categoria_nombre(self) -> str | None:
+        return self.categoria.nombre if self.categoria else None
 
     @property
     def empresa_nombre(self) -> str:

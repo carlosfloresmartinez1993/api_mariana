@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
-import type { Cuenta, Empresa, Pagina, Proyecto, Usuario } from "./types";
+import type { Categoria, Cuenta, Empresa, Pagina, Proyecto, Usuario } from "./types";
 
 // Catálogos para selectores. El volumen esperado es pequeño (decenas o cientos).
 
@@ -23,6 +23,14 @@ export function useCuentas(empresaId?: string) {
   return useQuery({
     queryKey: ["cuentas", empresaId ?? "todas"],
     queryFn: () => api.get<Cuenta[]>("/cuentas", { empresa_id: empresaId }),
+  });
+}
+
+/** Categorías de entradas y salidas (todas; filtrar `activa` para capturar). */
+export function useCategorias() {
+  return useQuery({
+    queryKey: ["categorias"],
+    queryFn: () => api.get<Categoria[]>("/categorias"),
   });
 }
 

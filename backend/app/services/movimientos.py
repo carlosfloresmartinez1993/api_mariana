@@ -16,16 +16,27 @@ from sqlalchemy.orm import Session
 from app.api.utils import validar_no_futura
 from app.core.errors import ReglaNegocio
 from app.core.tiempo import ahora
-from app.models import AccionBitacora, Cuenta, Empresa, EmpresaProyecto, Entrada, Forma, Proyecto, Salida, Usuario
+from app.models import (
+    AccionBitacora,
+    Categoria,
+    Cuenta,
+    Empresa,
+    EmpresaProyecto,
+    Entrada,
+    Forma,
+    Proyecto,
+    Salida,
+    Usuario,
+)
 from app.schemas.movimiento import EntradaCrear, SalidaCrear
 from app.services.acceso import obtener, verificar_autor
 from app.services.bitacora import instantanea, registrar
 from app.services.saldos import bloquear, validar_no_negativos
 
 CAMPOS_ENTRADA = ("proyecto_id", "empresa_id", "cuenta_id", "moneda", "fecha", "forma", "monto", "porcentaje_gasto",
-                  "monto_gasto", "monto_neto", "concepto", "referencia", "requiere_factura")
+                  "monto_gasto", "monto_neto", "concepto", "referencia", "requiere_factura", "categoria_id")
 CAMPOS_SALIDA = ("proyecto_id", "empresa_id", "cuenta_id", "moneda", "fecha", "forma", "monto", "concepto",
-                 "beneficiario", "requiere_factura")
+                 "beneficiario", "requiere_factura", "categoria_id")
 Movimiento = Entrada | Salida
 
 
@@ -53,6 +64,15 @@ def _proyecto_activo(db: Session, proyecto_id: uuid.UUID) -> Proyecto:
     return proyecto
 
 
+def _categoria_activa(db: Session, categoria_id: uuid.UUID | None) -> None:
+    """La categoría es opcional; si se indica, debe existir y estar activa."""
+    if categoria_id is None:
+        return
+    categoria = obtener(db, Categoria, categoria_id, "Categoría")
+    if not categoria.activa:
+        raise ReglaNegocio(f"La categoría «{categoria.nombre}» está desactivada")
+
+
 def vincular(db: Session, empresa: Empresa, proyecto: Proyecto, usuario: Usuario, *, automatico: bool) -> bool:
     """Vincula la empresa al proyecto si no lo estaba. Devuelve True si creó el vínculo."""
     if db.get(EmpresaProyecto, (empresa.id, proyecto.id)):
@@ -70,6 +90,7 @@ def crear_entrada(db: Session, datos: EntradaCrear, usuario: Usuario) -> Entrada
     validar_no_futura(datos.fecha)
     proyecto = _proyecto_activo(db, datos.proyecto_id)
     cuenta = _cuenta_de_empresa(db, datos.cuenta_id, datos.empresa_id, datos.forma)
+    _categoria_activa(db, datos.categoria_id)
     vincular(db, cuenta.empresa, proyecto, usuario, automatico=True)
     entrada = Entrada(**datos.model_dump(), moneda=cuenta.moneda, creado_por=usuario.id)
     db.add(entrada)
@@ -85,6 +106,7 @@ def crear_salida(db: Session, datos: SalidaCrear, usuario: Usuario) -> Salida:
     validar_no_futura(datos.fecha)
     proyecto = _proyecto_activo(db, datos.proyecto_id)
     cuenta = _cuenta_de_empresa(db, datos.cuenta_id, datos.empresa_id, datos.forma)
+    _categoria_activa(db, datos.categoria_id)
     bloquear(db, proyecto_ids={proyecto.id}, cuenta_ids={cuenta.id})
     vincular(db, cuenta.empresa, proyecto, usuario, automatico=True)
     salida = Salida(**datos.model_dump(), moneda=cuenta.moneda, creado_por=usuario.id)
@@ -113,6 +135,8 @@ def editar(db: Session, mov: Movimiento, cambios: dict[str, Any], usuario: Usuar
         raise ReglaNegocio("No se indicó ningún cambio")
     if cambios.get("fecha"):
         validar_no_futura(cambios["fecha"])
+    if cambios.get("categoria_id") and cambios["categoria_id"] != mov.categoria_id:
+        _categoria_activa(db, cambios["categoria_id"])
     obligatorios = {"fecha", "monto", "porcentaje_gasto", "requiere_factura",
                     "concepto" if isinstance(mov, Salida) else ""}
     if nulos := sorted(c for c in obligatorios if c in cambios and cambios[c] is None):

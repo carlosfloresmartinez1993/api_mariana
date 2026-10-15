@@ -106,3 +106,28 @@ def ingresos(db: DB, usuario: UsuarioActual, agrupar: AgruparIngresos = AgruparI
     reporte = svc.ingresos(db, agrupar=agrupar, desde=desde, hasta=hasta, empresa_id=empresa_id,
                            proyecto_id=proyecto_id)
     return responder(reporte, formato, f"ingresos-{agrupar.value}", usuario)
+
+
+@router.get("/por-categoria", **DOC, summary="Entradas y salidas por categoría")
+def por_categoria(db: DB, usuario: UsuarioActual, formato: FormatoQ = Formato.JSON, desde: date | None = None,
+                  hasta: date | None = None, empresa_id: uuid.UUID | None = None,
+                  proyecto_id: uuid.UUID | None = None, por_proyecto: bool = False):
+    """Con `por_proyecto=true`, una fila por proyecto y categoría."""
+    _validar_periodo(desde, hasta)
+    reporte = svc.por_categoria(db, desde=desde, hasta=hasta, empresa_id=empresa_id, proyecto_id=proyecto_id,
+                                por_proyecto=por_proyecto)
+    return responder(reporte, formato, "por-categoria", usuario)
+
+
+@router.get("/estimado-vs-real", **DOC, summary="Proyecciones del proyecto contra lo real")
+def estimado_vs_real(db: DB, usuario: UsuarioActual, formato: FormatoQ = Formato.JSON,
+                     proyecto_id: uuid.UUID | None = None, solo_con_estimados: bool = False):
+    reporte = svc.estimado_vs_real(db, proyecto_id=proyecto_id, solo_con_estimados=solo_con_estimados)
+    return responder(reporte, formato, "estimado-vs-real", usuario)
+
+
+@router.get("/cuentas-por-cobrar-pagar", **DOC, summary="Cuentas por cobrar y por pagar de los proyectos")
+def cuentas_por_cobrar_pagar(db: DB, usuario: UsuarioActual, formato: FormatoQ = Formato.JSON,
+                             proyecto_id: uuid.UUID | None = None, incluir_liquidadas: bool = False):
+    reporte = svc.cuentas_por_cobrar_pagar(db, proyecto_id=proyecto_id, incluir_liquidadas=incluir_liquidadas)
+    return responder(reporte, formato, "cuentas-por-cobrar-pagar", usuario)

@@ -1,11 +1,11 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.enums import Moneda, TipoCuenta
-from app.schemas.comun import Nombre100, Nombre200, ORMModel, TextoOpcional
+from app.schemas.comun import DineroNoNegativo, Nombre100, Nombre200, ORMModel, TextoOpcional
 
 
 class Registro(ORMModel):
@@ -76,14 +76,35 @@ class CuentaConSaldo(CuentaOut):
 
 
 # ------------------------------------------------------------------ proyectos
-class ProyectoCrear(BaseModel):
+class Proyeccion(BaseModel):
+    """Estimados opcionales del proyecto. No afectan saldos: solo se comparan con lo real."""
+
+    estimado_ingresos_mxn: DineroNoNegativo | None = None
+    estimado_gastos_mxn: DineroNoNegativo | None = None
+    estimado_ingresos_usd: DineroNoNegativo | None = None
+    estimado_gastos_usd: DineroNoNegativo | None = None
+    trabajadores_estimados: int | None = Field(default=None, ge=0, le=1_000_000)
+    fecha_inicio_estimada: date | None = None
+    fecha_fin_estimada: date | None = None
+
+    @model_validator(mode="after")
+    def _fechas(self):
+        if self.fecha_inicio_estimada and self.fecha_fin_estimada and self.fecha_fin_estimada < self.fecha_inicio_estimada:
+            raise ValueError("La fecha estimada de terminación no puede ser anterior a la de inicio")
+        return self
+
+
+CAMPOS_PROYECCION = tuple(Proyeccion.model_fields)
+
+
+class ProyectoCrear(Proyeccion):
     nombre: Nombre200
     descripcion: TextoOpcional = Field(default=None, max_length=2000)
     # Empresas a las que se vincula desde el inicio (opcional; también se vincula sola al capturar).
     empresa_ids: list[uuid.UUID] = []
 
 
-class ProyectoActualizar(BaseModel):
+class ProyectoActualizar(Proyeccion):
     nombre: Nombre200 | None = None
     descripcion: TextoOpcional = Field(default=None, max_length=2000)
 
@@ -103,7 +124,7 @@ class SaldoProyecto(BaseModel):
 
 
 class SaldoProyectoEmpresa(SaldoProyecto):
-    """Lo que el proyecto tiene en una empresa: solo de ahí puede salir ese dinero."""
+    """Lo que el proyecto tiene en una empresa (negativo si usó dinero de otros proyectos)."""
 
     empresa_id: uuid.UUID
     empresa_nombre: str
@@ -115,6 +136,13 @@ class ProyectoOut(Registro):
     descripcion: str | None
     activo: bool
     empresas: list[EmpresaBreve]
+    estimado_ingresos_mxn: Decimal | None
+    estimado_gastos_mxn: Decimal | None
+    estimado_ingresos_usd: Decimal | None
+    estimado_gastos_usd: Decimal | None
+    trabajadores_estimados: int | None
+    fecha_inicio_estimada: date | None
+    fecha_fin_estimada: date | None
 
 
 class ProyectoResumen(ProyectoOut):

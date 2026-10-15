@@ -11,6 +11,7 @@ import Proyectos from "./pages/Proyectos";
 import ProyectoDetalle from "./pages/ProyectoDetalle";
 import { Entradas, Salidas } from "./pages/Movimientos";
 import Reportes from "./pages/Reportes";
+import Categorias from "./pages/Categorias";
 import Usuarios from "./pages/Usuarios";
 import Bitacora from "./pages/Bitacora";
 import Perfil from "./pages/Perfil";
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="proyectos/:id" element={<ProyectoDetalle />} />
         <Route path="entradas" element={<Entradas />} />
         <Route path="salidas" element={<Salidas />} />
+        <Route path="categorias" element={<Categorias />} />
         <Route path="reportes" element={<Reportes />} />
         <Route path="usuarios" element={<Protegida soloAdmin><Usuarios /></Protegida>} />
         <Route path="bitacora" element={<Protegida soloAdmin><Bitacora /></Protegida>} />

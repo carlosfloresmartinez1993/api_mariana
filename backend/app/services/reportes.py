@@ -12,7 +12,21 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Cuenta, Empresa, EmpresaProyecto, Entrada, Moneda, Proyecto, Salida, TipoCuenta
+from app.core.tiempo import hoy
+
+from app.models import (
+    Categoria,
+    Cuenta,
+    Empresa,
+    EmpresaProyecto,
+    Entrada,
+    Moneda,
+    Pendiente,
+    Proyecto,
+    Salida,
+    TipoCuenta,
+    TipoPendiente,
+)
 from app.services.exportacion import Reporte
 from app.services.saldos import (
     CERO,
@@ -292,6 +306,163 @@ def ingresos(db: Session, *, agrupar: AgruparIngresos, desde: date | None = None
         totales=_totales_por_moneda(filas, ("total",), agrupar.value),
         parametros=_parametros(desde, hasta, Empresa=_nombre(db, Empresa, empresa_id),
                                Proyecto=_nombre(db, Proyecto, proyecto_id)),
+    )
+
+
+# ------------------------------------------------------------------ categorías
+SIN_CATEGORIA = "Sin categoría"
+
+
+def por_categoria(db: Session, *, desde: date | None = None, hasta: date | None = None,
+                  empresa_id: uuid.UUID | None = None, proyecto_id: uuid.UUID | None = None,
+                  por_proyecto: bool = False) -> Reporte:
+    """Entradas (neto) y salidas por categoría y moneda. Con `por_proyecto`, una fila por proyecto y categoría."""
+    filas_por: dict[tuple, dict[str, Any]] = {}
+
+    def acumular(modelo, columna_monto, clave_monto: str) -> None:
+        columnas = [Categoria.nombre, modelo.moneda] + ([Proyecto.nombre] if por_proyecto else [])
+        stmt = (select(*columnas, func.count(), func.sum(columna_monto))
+                .select_from(modelo).outerjoin(Categoria, modelo.categoria_id == Categoria.id)
+                .join(Proyecto, modelo.proyecto_id == Proyecto.id)
+                .where(modelo.anulado.is_(False)).group_by(*columnas))
+        stmt = _periodo(stmt, modelo.fecha, desde, hasta)
+        if empresa_id:
+            stmt = stmt.where(modelo.empresa_id == empresa_id)
+        if proyecto_id:
+            stmt = stmt.where(modelo.proyecto_id == proyecto_id)
+        for fila in db.execute(stmt):
+            categoria, moneda, *resto = fila
+            proyecto = resto[0] if por_proyecto else None
+            cantidad, total = resto[-2], resto[-1]
+            clave = (proyecto, categoria or SIN_CATEGORIA, moneda)
+            f = filas_por.setdefault(clave, {**({"proyecto": proyecto} if por_proyecto else {}),
+                                             "categoria": categoria or SIN_CATEGORIA, "moneda": moneda,
+                                             "movimientos": 0, "entradas": CERO, "salidas": CERO})
+            f["movimientos"] += cantidad
+            f[clave_monto] += Decimal(total)
+
+    acumular(Entrada, Entrada.monto_neto, "entradas")
+    acumular(Salida, Salida.monto, "salidas")
+    filas = list(filas_por.values())
+    for f in filas:
+        f["neto"] = f["entradas"] - f["salidas"]
+    filas.sort(key=lambda f: ((f.get("proyecto") or "").lower(), f["categoria"] == SIN_CATEGORIA,
+                              f["categoria"].lower(), f["moneda"]))
+    return Reporte(
+        titulo="Por proyecto y categoría" if por_proyecto else "Por categoría",
+        columnas=[*([("proyecto", "Proyecto")] if por_proyecto else []), ("categoria", "Categoría"),
+                  ("moneda", "Moneda"), ("movimientos", "Movimientos"), ("entradas", "Entradas (neto)"),
+                  ("salidas", "Salidas"), ("neto", "Neto")],
+        filas=filas,
+        totales=_totales_por_moneda(filas, ("entradas", "salidas", "neto"),
+                                    "proyecto" if por_proyecto else "categoria"),
+        parametros=_parametros(desde, hasta, Empresa=_nombre(db, Empresa, empresa_id),
+                               Proyecto=_nombre(db, Proyecto, proyecto_id)),
+    )
+
+
+# ------------------------------------------------------------------ proyecciones
+def _porcentaje(real: Decimal, estimado: Decimal | None) -> Decimal | None:
+    if not estimado:
+        return None
+    return (real * 100 / estimado).quantize(Decimal("0.01"))
+
+
+def estimado_vs_real(db: Session, *, proyecto_id: uuid.UUID | None = None,
+                     solo_con_estimados: bool = False) -> Reporte:
+    """Por proyecto y moneda: ingresos y gastos (salidas) estimados contra los reales, avance en %,
+    cuentas por cobrar y por pagar pendientes. Las proyecciones no afectan ningún saldo."""
+    consulta = select(Proyecto).order_by(Proyecto.nombre)
+    if proyecto_id:
+        consulta = consulta.where(Proyecto.id == proyecto_id)
+    proyectos = list(db.scalars(consulta).unique())
+    reales = totales_proyectos(db, [p.id for p in proyectos]) if proyectos else {}
+    pendientes: dict[tuple, Decimal] = defaultdict(lambda: CERO)
+    if proyectos:
+        for pid, tipo, moneda, total in db.execute(
+                select(Pendiente.proyecto_id, Pendiente.tipo, Pendiente.moneda, func.sum(Pendiente.monto))
+                .where(Pendiente.liquidada.is_(False), Pendiente.proyecto_id.in_([p.id for p in proyectos]))
+                .group_by(Pendiente.proyecto_id, Pendiente.tipo, Pendiente.moneda)):
+            pendientes[(pid, TipoPendiente(tipo), Moneda(moneda))] = Decimal(total)
+
+    filas = []
+    for p in proyectos:
+        for moneda in (Moneda.MXN, Moneda.USD):
+            sufijo = moneda.value.lower()
+            est_ing = getattr(p, f"estimado_ingresos_{sufijo}")
+            est_gas = getattr(p, f"estimado_gastos_{sufijo}")
+            real = reales.get((p.id, moneda))
+            cobrar = pendientes[(p.id, TipoPendiente.POR_COBRAR, moneda)]
+            pagar = pendientes[(p.id, TipoPendiente.POR_PAGAR, moneda)]
+            hay_estimado = est_ing is not None or est_gas is not None
+            if not (hay_estimado or real or cobrar or pagar) or (solo_con_estimados and not hay_estimado):
+                continue
+            ingresos = real.ingresos if real else CERO
+            salidas = real.salidas if real else CERO
+            filas.append({
+                "proyecto": p.nombre, "moneda": moneda,
+                "ingresos_estimados": est_ing, "ingresos_reales": ingresos, "avance_ingresos": _porcentaje(ingresos, est_ing),
+                "gastos_estimados": est_gas, "gastos_reales": salidas, "avance_gastos": _porcentaje(salidas, est_gas),
+                "resultado_estimado": (est_ing or CERO) - (est_gas or CERO) if hay_estimado else None,
+                "resultado_real": ingresos - salidas,
+                "por_cobrar": cobrar, "por_pagar": pagar,
+                "trabajadores": p.trabajadores_estimados if moneda == Moneda.MXN else None,
+                "inicio_estimado": p.fecha_inicio_estimada if moneda == Moneda.MXN else None,
+                "fin_estimado": p.fecha_fin_estimada if moneda == Moneda.MXN else None,
+            })
+    return Reporte(
+        titulo="Estimado contra real",
+        columnas=[("proyecto", "Proyecto"), ("moneda", "Moneda"), ("ingresos_estimados", "Ingresos estimados"),
+                  ("ingresos_reales", "Ingresos reales (neto)"), ("avance_ingresos", "% ingresos"),
+                  ("gastos_estimados", "Gastos estimados"), ("gastos_reales", "Salidas reales"),
+                  ("avance_gastos", "% gastos"), ("resultado_estimado", "Resultado estimado"),
+                  ("resultado_real", "Resultado real"), ("por_cobrar", "Por cobrar"), ("por_pagar", "Por pagar"),
+                  ("trabajadores", "Trabajadores est."), ("inicio_estimado", "Inicio est."),
+                  ("fin_estimado", "Fin est.")],
+        filas=filas,
+        totales=_totales_por_moneda(filas, ("ingresos_estimados", "ingresos_reales", "gastos_estimados",
+                                            "gastos_reales", "resultado_estimado", "resultado_real",
+                                            "por_cobrar", "por_pagar"), "proyecto"),
+        parametros={**({"Proyecto": proyectos[0].nombre} if proyecto_id and proyectos else {})},
+    )
+
+
+# ------------------------------------------------------------------ cuentas por cobrar y por pagar
+def cuentas_por_cobrar_pagar(db: Session, *, proyecto_id: uuid.UUID | None = None,
+                             incluir_liquidadas: bool = False) -> Reporte:
+    """Una fila por partida; el monto va en la columna «Por cobrar» o «Por pagar». Totales por moneda."""
+    stmt = select(Pendiente).join(Pendiente.proyecto).order_by(
+        Proyecto.nombre, Pendiente.fecha_vencimiento.asc().nulls_last(), Pendiente.concepto)
+    if proyecto_id:
+        stmt = stmt.where(Pendiente.proyecto_id == proyecto_id)
+    if not incluir_liquidadas:
+        stmt = stmt.where(Pendiente.liquidada.is_(False))
+    hoy_ = hoy()
+    filas = []
+    for p in db.scalars(stmt).unique():
+        cobrar = p.tipo == TipoPendiente.POR_COBRAR
+        if p.liquidada:
+            estado = "Liquidada"
+        elif p.fecha_vencimiento and p.fecha_vencimiento < hoy_:
+            estado = "VENCIDA"
+        else:
+            estado = "Pendiente"
+        filas.append({"proyecto": p.proyecto.nombre, "concepto": p.concepto, "contraparte": p.contraparte,
+                      "moneda": p.moneda, "por_cobrar": p.monto if cobrar else None,
+                      "por_pagar": None if cobrar else p.monto, "vencimiento": p.fecha_vencimiento,
+                      "estado": estado})
+    totales = _totales_por_moneda(filas, ("por_cobrar", "por_pagar"), "proyecto")
+    for t in totales:
+        t["diferencia"] = t["por_cobrar"] - t["por_pagar"]
+    return Reporte(
+        titulo="Cuentas por cobrar y por pagar",
+        columnas=[("proyecto", "Proyecto"), ("concepto", "Concepto"), ("contraparte", "Cliente / proveedor"),
+                  ("moneda", "Moneda"), ("por_cobrar", "Por cobrar"), ("por_pagar", "Por pagar"),
+                  ("diferencia", "Diferencia"), ("vencimiento", "Vencimiento"), ("estado", "Estado")],
+        filas=filas,
+        totales=totales,
+        parametros={"Incluye liquidadas": "sí" if incluir_liquidadas else "no",
+                    **({"Proyecto": _nombre(db, Proyecto, proyecto_id)} if proyecto_id else {})},
     )
 
 

@@ -75,9 +75,9 @@ def listar_entradas(db: DB, _: UsuarioActual, pag: PaginacionDep, proyecto_id: u
                     empresa_id: uuid.UUID | None = None, cuenta_id: uuid.UUID | None = None,
                     moneda: Moneda | None = None, forma: Forma | None = None, desde: date | None = None,
                     hasta: date | None = None, estado: Estado = Estado.VIGENTES, q: str | None = None,
-                    factura: FiltroFactura | None = None):
+                    factura: FiltroFactura | None = None, categoria_id: uuid.UUID | None = None):
     stmt = _comunes(select(Entrada), Entrada, estado, desde, hasta, moneda, factura)
-    for columna, valor in ((Entrada.proyecto_id, proyecto_id), (Entrada.empresa_id, empresa_id),
+    for columna, valor in ((Entrada.proyecto_id, proyecto_id), (Entrada.empresa_id, empresa_id), (Entrada.categoria_id, categoria_id),
                            (Entrada.cuenta_id, cuenta_id), (Entrada.forma, forma)):
         if valor:
             stmt = stmt.where(columna == valor)
@@ -115,9 +115,9 @@ def listar_salidas(db: DB, _: UsuarioActual, pag: PaginacionDep, proyecto_id: uu
                    empresa_id: uuid.UUID | None = None, cuenta_id: uuid.UUID | None = None,
                    moneda: Moneda | None = None, forma: Forma | None = None, desde: date | None = None,
                    hasta: date | None = None, estado: Estado = Estado.VIGENTES, q: str | None = None,
-                   factura: FiltroFactura | None = None):
+                   factura: FiltroFactura | None = None, categoria_id: uuid.UUID | None = None):
     stmt = _comunes(select(Salida), Salida, estado, desde, hasta, moneda, factura)
-    for columna, valor in ((Salida.proyecto_id, proyecto_id), (Salida.empresa_id, empresa_id),
+    for columna, valor in ((Salida.proyecto_id, proyecto_id), (Salida.empresa_id, empresa_id), (Salida.categoria_id, categoria_id),
                            (Salida.cuenta_id, cuenta_id), (Salida.forma, forma)):
         if valor:
             stmt = stmt.where(columna == valor)

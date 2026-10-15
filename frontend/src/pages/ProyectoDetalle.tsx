@@ -5,6 +5,7 @@ import { useAuth } from "../auth/AuthContext";
 import { EntradaForm, SalidaForm } from "../components/formularios/MovimientoForms";
 import { ProyectoForm } from "../components/formularios/NombreForm";
 import { Icono } from "../components/Icono";
+import { PendientesProyecto, ProyeccionVsReal } from "../components/Pendientes";
 import { Exportar, ReporteTabla } from "../components/ReporteTabla";
 import { useToast } from "../components/Toast";
 import {
@@ -104,10 +105,12 @@ export default function ProyectoDetalle() {
         </div>
       )}
 
+      <ProyeccionVsReal proyecto={p} />
+
       {p.saldos_por_empresa.length > 0 && (
         <>
           <h2 className="mb-1 text-lg font-semibold text-black">Saldo por empresa</h2>
-          <p className="mb-3 text-sm text-neutral-500">El dinero del proyecto solo puede salir de la empresa donde entró.</p>
+          <p className="mb-3 text-sm text-neutral-500">Cuánto tiene el proyecto en cada empresa. Si es negativo, usó dinero de otros proyectos.</p>
           <Tarjeta className="mb-6">
             <Tabla>
               <thead>
@@ -166,6 +169,8 @@ export default function ProyectoDetalle() {
           )}
         </div>
       </Tarjeta>
+
+      <PendientesProyecto proyectoId={p.id} />
 
       <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <h2 className="text-lg font-semibold text-black">Historial</h2>

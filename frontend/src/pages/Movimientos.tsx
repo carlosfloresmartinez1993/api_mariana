@@ -26,11 +26,11 @@ import {
 import { api } from "../lib/api";
 import { dinero, fecha, porcentaje } from "../lib/format";
 import { useFiltros } from "../lib/filtros";
-import { useCuentas, useEmpresasCatalogo, useProyectosCatalogo } from "../lib/queries";
+import { useCategorias, useCuentas, useEmpresasCatalogo, useProyectosCatalogo } from "../lib/queries";
 import { MONEDAS, NOMBRE_FORMA, type Entrada, type Movimiento, type Pagina, type Salida } from "../lib/types";
 
 const LIMITE = 50;
-const CLAVES = ["proyecto_id", "empresa_id", "cuenta_id", "moneda", "forma", "desde", "hasta", "estado", "factura", "q"] as const;
+const CLAVES = ["proyecto_id", "empresa_id", "cuenta_id", "moneda", "forma", "desde", "hasta", "estado", "factura", "categoria_id", "q"] as const;
 type Filtros = Record<(typeof CLAVES)[number], string>;
 
 function useMovimientos<T>(ruta: string) {
@@ -53,6 +53,7 @@ function BarraFiltros({ filtros, cambiar, limpiar, activos }: {
   const proyectos = useProyectosCatalogo();
   const empresas = useEmpresasCatalogo();
   const cuentas = useCuentas();
+  const categorias = useCategorias();
   const cuenta = cuentas.data?.find((c) => c.id === filtros.cuenta_id);
   return (
     <Tarjeta className="mb-4 p-4">
@@ -105,6 +106,14 @@ function BarraFiltros({ filtros, cambiar, limpiar, activos }: {
         </Campo>
         <Campo etiqueta="Hasta">
           {(id) => <Input id={id} type="date" value={filtros.hasta} onChange={(e) => cambiar({ hasta: e.target.value })} />}
+        </Campo>
+        <Campo etiqueta="Categoría">
+          {(id) => (
+            <Select id={id} value={filtros.categoria_id} onChange={(e) => cambiar({ categoria_id: e.target.value })}>
+              <option value="">Todas</option>
+              {categorias.data?.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </Select>
+          )}
         </Campo>
         <Campo etiqueta="Factura">
           {(id) => (
@@ -229,7 +238,7 @@ export function Entradas() {
             <Td derecha>{Number(e.porcentaje_gasto) ? porcentaje(e.porcentaje_gasto) : "—"}</Td>
             <Td derecha>{Number(e.monto_gasto) ? <Monto valor={e.monto_gasto} /> : "—"}</Td>
             <Td derecha className="font-semibold"><Monto valor={e.monto_neto} /></Td>
-            <Td className="max-w-48">{e.concepto}{e.referencia && <p className="text-xs text-neutral-500">Ref. {e.referencia}</p>}</Td>
+            <Td className="max-w-48">{e.concepto}{e.referencia && <p className="text-xs text-neutral-500">Ref. {e.referencia}</p>}{e.categoria_nombre && <p className="text-xs"><Insignia>{e.categoria_nombre}</Insignia></p>}</Td>
             <Td><FacturaCelda mov={e} ruta={`/entradas/${e.id}`} /></Td>
             <Td className="text-neutral-500"><Registrado mov={e} /></Td>
             <Td className="whitespace-nowrap text-right"><Acciones mov={e} onEditar={() => setForm({ entrada: e })} onAnular={() => setAnulando(e)} /></Td>
@@ -267,7 +276,7 @@ export function Salidas() {
             <Td>{s.empresa_nombre}<p className="text-xs text-neutral-500">{s.cuenta_nombre}</p></Td>
             <Td>{NOMBRE_FORMA[s.forma]}</Td>
             <Td derecha className="font-semibold"><Monto valor={s.monto} moneda={s.moneda} /></Td>
-            <Td className="max-w-56">{s.concepto}{s.beneficiario && <p className="text-xs text-neutral-500">{s.beneficiario}</p>}</Td>
+            <Td className="max-w-56">{s.concepto}{s.beneficiario && <p className="text-xs text-neutral-500">{s.beneficiario}</p>}{s.categoria_nombre && <p className="text-xs"><Insignia>{s.categoria_nombre}</Insignia></p>}</Td>
             <Td><FacturaCelda mov={s} ruta={`/salidas/${s.id}`} /></Td>
             <Td className="text-neutral-500"><Registrado mov={s} /></Td>
             <Td className="whitespace-nowrap text-right"><Acciones mov={s} onEditar={() => setForm({ salida: s })} onAnular={() => setAnulando(s)} /></Td>

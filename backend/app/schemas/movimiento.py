@@ -36,6 +36,7 @@ class EntradaCrear(BaseModel):
     concepto: TextoOpcional = None
     referencia: TextoOpcional = Field(default=None, max_length=100)
     requiere_factura: bool = False
+    categoria_id: uuid.UUID | None = None
 
 
 class EntradaActualizar(BaseModel):
@@ -47,10 +48,13 @@ class EntradaActualizar(BaseModel):
     concepto: TextoOpcional = None
     referencia: TextoOpcional = Field(default=None, max_length=100)
     requiere_factura: bool | None = None
+    categoria_id: uuid.UUID | None = None
 
 
 class EntradaOut(Registro, Anulacion, Factura):
     id: uuid.UUID
+    categoria_id: uuid.UUID | None
+    categoria_nombre: str | None
     proyecto_id: uuid.UUID
     proyecto_nombre: str
     empresa_id: uuid.UUID
@@ -79,6 +83,7 @@ class SalidaCrear(BaseModel):
     concepto: Texto
     beneficiario: TextoOpcional = Field(default=None, max_length=200)
     requiere_factura: bool = False
+    categoria_id: uuid.UUID | None = None
 
 
 class SalidaActualizar(BaseModel):
@@ -87,10 +92,13 @@ class SalidaActualizar(BaseModel):
     concepto: Texto | None = None
     beneficiario: TextoOpcional = Field(default=None, max_length=200)
     requiere_factura: bool | None = None
+    categoria_id: uuid.UUID | None = None
 
 
 class SalidaOut(Registro, Anulacion, Factura):
     id: uuid.UUID
+    categoria_id: uuid.UUID | None
+    categoria_nombre: str | None
     proyecto_id: uuid.UUID
     proyecto_nombre: str
     empresa_id: uuid.UUID

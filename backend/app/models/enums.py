@@ -30,6 +30,13 @@ class Forma(StrEnum):
         return TipoCuenta.BANCO if self == Forma.TRANSFERENCIA else TipoCuenta.CAJA
 
 
+class TipoPendiente(StrEnum):
+    """Cuenta pendiente de un proyecto: lo que le deben (por cobrar) o lo que debe (por pagar)."""
+
+    POR_COBRAR = "por_cobrar"
+    POR_PAGAR = "por_pagar"
+
+
 class AccionBitacora(StrEnum):
     """Catálogo cerrado de acciones de la bitácora. La entidad afectada va en su propia columna."""
 
@@ -46,6 +53,8 @@ class AccionBitacora(StrEnum):
     CAMBIO_SALDO_INICIAL = "CAMBIO_SALDO_INICIAL"  # ya no se usa; se conserva por los registros antiguos
     SUBIR_FACTURA = "SUBIR_FACTURA"
     ELIMINAR_FACTURA = "ELIMINAR_FACTURA"
+    LIQUIDAR = "LIQUIDAR"
+    ELIMINAR = "ELIMINAR"
 
 
 def enum_columna(enum_cls: type[StrEnum], nombre: str, largo: int) -> SAEnum:

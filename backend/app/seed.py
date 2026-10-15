@@ -16,7 +16,19 @@ from sqlalchemy import func, select
 from app.core.security import hash_password
 from app.core.tiempo import hoy
 from app.db.session import SessionLocal
-from app.models import AccionBitacora, Cuenta, Empresa, Moneda, Proyecto, Rol, TipoCuenta, Usuario
+from app.models import (
+    AccionBitacora,
+    Categoria,
+    Cuenta,
+    Empresa,
+    Moneda,
+    Pendiente,
+    Proyecto,
+    Rol,
+    TipoCuenta,
+    TipoPendiente,
+    Usuario,
+)
 from app.schemas.movimiento import EntradaCrear, SalidaCrear
 from app.services.bitacora import registrar
 from app.services.movimientos import crear_entrada, crear_salida, vincular
@@ -79,6 +91,18 @@ def main() -> int:
         palmas = proyecto("Residencial Las Palmas", "40 casas en Rosarito", luis)
         bodega = proyecto("Bodega Industrial", None, ana)
         vincular(db, norte, bodega, ana, automatico=False)
+        # Proyecciones (no afectan saldos)
+        torre.estimado_ingresos_mxn, torre.estimado_gastos_mxn = Decimal("1500000"), Decimal("900000")
+        torre.estimado_ingresos_usd, torre.estimado_gastos_usd = Decimal("25000"), Decimal("15000")
+        torre.trabajadores_estimados = 40
+        torre.fecha_inicio_estimada, torre.fecha_fin_estimada = hoy() - timedelta(days=60), hoy() + timedelta(days=300)
+        palmas.estimado_ingresos_mxn, palmas.estimado_gastos_mxn = Decimal("4000000"), Decimal("2600000")
+        palmas.trabajadores_estimados = 60
+        cat = {}
+        for nombre in ("Anticipos", "Ventas", "Materiales", "Nómina", "Servicios", "Depósitos"):
+            cat[nombre] = Categoria(nombre=nombre, creado_por=ana.id)
+            db.add(cat[nombre])
+        db.flush()
         db.commit()
 
         d = hoy()
@@ -86,40 +110,51 @@ def main() -> int:
         def dia(n: int):
             return d - timedelta(days=n)
 
-        def ent(autor, p, cta, n, monto, pct="0", concepto=None, ref=None):
+        def ent(autor, p, cta, n, monto, pct="0", concepto=None, ref=None, categoria=None):
             crear_entrada(db, EntradaCrear(proyecto_id=p.id, empresa_id=cta.empresa_id, cuenta_id=cta.id, fecha=dia(n),
                                            forma="efectivo" if cta.tipo == TipoCuenta.CAJA else "transferencia",
                                            monto=Decimal(monto), porcentaje_gasto=Decimal(pct), concepto=concepto,
-                                           referencia=ref), autor)
+                                           referencia=ref, categoria_id=cat[categoria].id if categoria else None),
+                          autor)
 
-        def sal(autor, p, cta, n, monto, concepto, beneficiario=None):
+        def sal(autor, p, cta, n, monto, concepto, beneficiario=None, categoria=None, factura=False):
             crear_salida(db, SalidaCrear(proyecto_id=p.id, empresa_id=cta.empresa_id, cuenta_id=cta.id, fecha=dia(n),
                                          forma="efectivo" if cta.tipo == TipoCuenta.CAJA else "transferencia",
-                                         monto=Decimal(monto), concepto=concepto, beneficiario=beneficiario), autor)
+                                         monto=Decimal(monto), concepto=concepto, beneficiario=beneficiario,
+                                         categoria_id=cat[categoria].id if categoria else None,
+                                         requiere_factura=factura), autor)
 
         # El dinero que ya había en las cuentas al empezar también entra por un proyecto.
         ent(ana, torre, c["norte_bbva"], 60, "250000", concepto="Saldo de apertura")
         ent(ana, torre, c["norte_caja"], 60, "15000", concepto="Saldo de apertura")
-        ent(ana, torre, c["norte_bbva"], 55, "500000", "3", "Anticipo 1", "SPEI 88213")
+        ent(ana, torre, c["norte_bbva"], 55, "500000", "3", "Anticipo 1", "SPEI 88213", "Anticipos")
         ent(ana, torre, c["norte_caja"], 48, "80000", "5", "Pago en efectivo")
-        ent(luis, torre, c["pac_banorte"], 40, "300000", "2.5", "Anticipo 2", "SPEI 90122")
+        ent(luis, torre, c["pac_banorte"], 40, "300000", "2.5", "Anticipo 2", "SPEI 90122", "Anticipos")
         ent(ana, torre, c["norte_usd"], 35, "20000", "1", "Pago de socio", "WIRE 5512")
-        ent(luis, palmas, c["pac_banorte"], 30, "750000", "3", "Venta casa 1 y 2")
-        ent(luis, palmas, c["pac_caja"], 21, "120000", concepto="Apartado casa 7")
-        ent(luis, palmas, c["pac_caja_usd"], 14, "8000", "2", "Apartado casa 12")
+        ent(luis, palmas, c["pac_banorte"], 30, "750000", "3", "Venta casa 1 y 2", categoria="Ventas")
+        ent(luis, palmas, c["pac_caja"], 21, "120000", concepto="Apartado casa 7", categoria="Ventas")
+        ent(luis, palmas, c["pac_caja_usd"], 14, "8000", "2", "Apartado casa 12", categoria="Ventas")
         ent(ana, bodega, c["norte_bbva"], 10, "200000", concepto="Anticipo")
-        sal(ana, torre, c["norte_bbva"], 45, "180000", "Acero y varilla", "Aceros del Pacífico SA")
-        sal(ana, torre, c["norte_caja"], 44, "35000", "Nómina de obra, semana 1")
-        sal(luis, torre, c["pac_banorte"], 25, "120000", "Concreto premezclado", "Cemex")
+        sal(ana, torre, c["norte_bbva"], 45, "180000", "Acero y varilla", "Aceros del Pacífico SA", "Materiales", True)
+        sal(ana, torre, c["norte_caja"], 44, "35000", "Nómina de obra, semana 1", categoria="Nómina")
+        sal(luis, torre, c["pac_banorte"], 25, "120000", "Concreto premezclado", "Cemex", "Materiales", True)
         sal(ana, torre, c["norte_usd"], 20, "6500", "Elevador, anticipo", "Otis")
-        sal(luis, palmas, c["pac_banorte"], 18, "260000", "Urbanización", "Pavimentos Baja")
-        sal(luis, palmas, c["pac_caja"], 7, "45000", "Nómina de obra")
-        sal(ana, bodega, c["norte_bbva"], 3, "95000", "Estructura metálica", "Naves del Norte")
+        sal(luis, palmas, c["pac_banorte"], 18, "260000", "Urbanización", "Pavimentos Baja", "Servicios", True)
+        sal(luis, palmas, c["pac_caja"], 7, "45000", "Nómina de obra", categoria="Nómina")
+        sal(ana, bodega, c["norte_bbva"], 3, "95000", "Estructura metálica", "Naves del Norte", "Materiales")
         # Depósito del efectivo al banco: salida de la caja y entrada sin % al banco, del mismo proyecto.
-        sal(ana, torre, c["norte_caja"], 30, "40000", "Depósito del efectivo al banco")
-        ent(ana, torre, c["norte_bbva"], 30, "40000", concepto="Depósito del efectivo de la caja")
-        sal(luis, palmas, c["pac_caja"], 5, "50000", "Depósito del efectivo al banco")
-        ent(luis, palmas, c["pac_banorte"], 5, "50000", concepto="Depósito del efectivo de la caja")
+        sal(ana, torre, c["norte_caja"], 30, "40000", "Depósito del efectivo al banco", categoria="Depósitos")
+        ent(ana, torre, c["norte_bbva"], 30, "40000", concepto="Depósito del efectivo de la caja", categoria="Depósitos")
+        sal(luis, palmas, c["pac_caja"], 5, "50000", "Depósito del efectivo al banco", categoria="Depósitos")
+        ent(luis, palmas, c["pac_banorte"], 5, "50000", concepto="Depósito del efectivo de la caja", categoria="Depósitos")
+        for proy, tipo, concepto, contraparte, moneda, monto, dias in (
+                (torre, TipoPendiente.POR_COBRAR, "Estimación 3", "Grupo Reforma", Moneda.MXN, "350000", 20),
+                (torre, TipoPendiente.POR_PAGAR, "Acero, segunda entrega", "Aceros del Pacífico SA", Moneda.MXN, "140000", -5),
+                (torre, TipoPendiente.POR_PAGAR, "Elevador, finiquito", "Otis", Moneda.USD, "6500", 45),
+                (palmas, TipoPendiente.POR_COBRAR, "Venta casa 3", "Cliente particular", Moneda.MXN, "380000", 30)):
+            db.add(Pendiente(proyecto_id=proy.id, tipo=tipo, concepto=concepto, contraparte=contraparte, moneda=moneda,
+                             monto=Decimal(monto), fecha_vencimiento=hoy() + timedelta(days=dias), creado_por=ana.id))
+        db.commit()
     print(f"seed: datos de demostración cargados. Usuarios: {', '.join(c for _, c, _ in USUARIOS)}")
     return 0
 

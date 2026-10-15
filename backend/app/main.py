@@ -8,7 +8,18 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy.exc import IntegrityError
 
-from app.api.routes import auth, bitacora, cuentas, empresas, movimientos, proyectos, reportes, usuarios
+from app.api.routes import (
+    auth,
+    bitacora,
+    categorias,
+    cuentas,
+    empresas,
+    movimientos,
+    pendientes,
+    proyectos,
+    reportes,
+    usuarios,
+)
 from app.core.config import settings
 from app.core.errors import ErrorDominio
 from app.core.rate_limit import limiter
@@ -100,8 +111,8 @@ async def manejar_error_inesperado(_: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": "Error interno del servidor"})
 
 
-for router in (auth.router, usuarios.router, empresas.router, cuentas.router, proyectos.router, movimientos.entradas,
-               movimientos.salidas, reportes.router, bitacora.router):
+for router in (auth.router, usuarios.router, empresas.router, cuentas.router, proyectos.router, categorias.router,
+               pendientes.router, movimientos.entradas, movimientos.salidas, reportes.router, bitacora.router):
     app.include_router(router)
 
 

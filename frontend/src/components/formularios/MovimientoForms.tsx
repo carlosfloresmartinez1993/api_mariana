@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { Link } from "react-router";
 import { api, guardarBlob } from "../../lib/api";
 import { calcularEntrada, dinero, hoyISO, montoParaApi, montoParaEditar, tamanoArchivo } from "../../lib/format";
-import { useCuentas, useEmpresasCatalogo, useInvalidarDinero, useProyectosCatalogo } from "../../lib/queries";
+import { useCategorias, useCuentas, useEmpresasCatalogo, useInvalidarDinero, useProyectosCatalogo } from "../../lib/queries";
 import {
   NOMBRE_FORMA,
   TIPO_DE_FORMA,
@@ -113,6 +113,27 @@ function useDestino(abierto: boolean, proyectoInicial?: string) {
   return { d, proyecto, cuenta, campos };
 }
 
+/** Categoría opcional: se ofrecen las activas y, al editar, la que ya tenía aunque esté desactivada. */
+function useCategoria(abierto: boolean, actual?: string | null) {
+  const categorias = useCategorias();
+  const [categoriaId, setCategoriaId] = useState("");
+  useEffect(() => {
+    if (abierto) setCategoriaId(actual ?? "");
+  }, [abierto, actual]);
+  const opciones = (categorias.data ?? []).filter((c) => c.activa || c.id === actual);
+  const campo = (
+    <Campo etiqueta="Categoría" ayuda={opciones.length ? undefined : "Opcional. Las categorías se crean en el menú Categorías."}>
+      {(id) => (
+        <Select id={id} value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)}>
+          <option value="">Sin categoría</option>
+          {opciones.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.activa ? "" : " (desactivada)"}</option>)}
+        </Select>
+      )}
+    </Campo>
+  );
+  return { categoriaId: categoriaId || null, campo };
+}
+
 function useFechaMonto(abierto: boolean, inicial?: { fecha: string; monto: string }) {
   const [fecha, setFecha] = useState(hoyISO());
   const [monto, setMonto] = useState("");
@@ -217,6 +238,7 @@ export function EntradaForm({ abierto, entrada, proyectoId, onCerrar }: {
   const inicial = useMemo(() => (entrada ? { fecha: entrada.fecha, monto: entrada.monto } : undefined), [entrada]);
   const { fecha, setFecha, monto, setMonto } = useFechaMonto(abierto, inicial);
   const factura = useFactura(abierto, entrada);
+  const categoria = useCategoria(abierto, entrada?.categoria_id);
   const [porcentaje, setPorcentaje] = useState("");
   const [concepto, setConcepto] = useState("");
   const [referencia, setReferencia] = useState("");
@@ -238,7 +260,7 @@ export function EntradaForm({ abierto, entrada, proyectoId, onCerrar }: {
     enviar(async () => {
       const datos = {
         fecha, monto: montoParaApi(monto), porcentaje_gasto: porcentaje || "0", concepto: concepto || null,
-        referencia: referencia || null, requiere_factura: factura.requiere,
+        referencia: referencia || null, requiere_factura: factura.requiere, categoria_id: categoria.categoriaId,
       };
       let id = entrada?.id;
       if (entrada) {
@@ -295,6 +317,7 @@ export function EntradaForm({ abierto, entrada, proyectoId, onCerrar }: {
             {(id) => <Input id={id} maxLength={100} value={referencia} onChange={(e) => setReferencia(e.target.value)} />}
           </Campo>
         </div>
+        {categoria.campo}
         {factura.campos(entrada ? `/entradas/${entrada.id}` : null)}
         <ErrorApi error={error} />
         <PieModal>
@@ -320,6 +343,7 @@ export function SalidaForm({ abierto, salida, proyectoId, onCerrar }: {
   const inicial = useMemo(() => (salida ? { fecha: salida.fecha, monto: salida.monto } : undefined), [salida]);
   const { fecha, setFecha, monto, setMonto } = useFechaMonto(abierto, inicial);
   const factura = useFactura(abierto, salida);
+  const categoria = useCategoria(abierto, salida?.categoria_id);
   const [concepto, setConcepto] = useState("");
   const [beneficiario, setBeneficiario] = useState("");
 
@@ -344,7 +368,7 @@ export function SalidaForm({ abierto, salida, proyectoId, onCerrar }: {
     e.preventDefault();
     enviar(async () => {
       const datos = { fecha, monto: montoParaApi(monto), concepto, beneficiario: beneficiario || null,
-        requiere_factura: factura.requiere };
+        requiere_factura: factura.requiere, categoria_id: categoria.categoriaId };
       let id = salida?.id;
       if (salida) {
         await api.patch(`/salidas/${salida.id}`, datos);
@@ -402,6 +426,7 @@ export function SalidaForm({ abierto, salida, proyectoId, onCerrar }: {
             {(id) => <Input id={id} maxLength={200} value={beneficiario} onChange={(e) => setBeneficiario(e.target.value)} />}
           </Campo>
         </div>
+        {categoria.campo}
         {factura.campos(salida ? `/salidas/${salida.id}` : null)}
         <ErrorApi error={error} />
         <PieModal>

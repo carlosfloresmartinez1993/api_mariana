@@ -18,6 +18,7 @@ const ENLACES: Enlace[] = [
   { a: "/proyectos", texto: "Proyectos", icono: "proyectos" },
   { a: "/entradas", texto: "Entradas", icono: "entradas" },
   { a: "/salidas", texto: "Salidas", icono: "salidas" },
+  { a: "/categorias", texto: "Categorías", icono: "etiqueta" },
   { a: "/reportes", texto: "Reportes", icono: "reportes" },
   { a: "/usuarios", texto: "Usuarios", icono: "usuarios", soloAdmin: true },
   { a: "/bitacora", texto: "Bitácora", icono: "bitacora", soloAdmin: true },

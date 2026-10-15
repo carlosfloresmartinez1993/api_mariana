@@ -85,7 +85,7 @@ export interface SaldoProyecto {
   saldo: string;
 }
 
-/** Lo que el proyecto tiene en una empresa: solo de ahí puede salir ese dinero. */
+/** Lo que el proyecto tiene en una empresa (puede ser negativo si usó dinero de otros proyectos). */
 export interface SaldoProyectoEmpresa extends SaldoProyecto {
   empresa_id: string;
   empresa_nombre: string;
@@ -103,6 +103,14 @@ export interface Proyecto extends Registro {
   descripcion: string | null;
   activo: boolean;
   empresas: EmpresaBreve[];
+  // Proyecciones (opcionales; no afectan saldos)
+  estimado_ingresos_mxn: string | null;
+  estimado_gastos_mxn: string | null;
+  estimado_ingresos_usd: string | null;
+  estimado_gastos_usd: string | null;
+  trabajadores_estimados: number | null;
+  fecha_inicio_estimada: string | null;
+  fecha_fin_estimada: string | null;
   /** Todas las empresas. */
   saldos: SaldoProyecto[];
   saldos_por_empresa: SaldoProyectoEmpresa[];
@@ -126,6 +134,8 @@ interface Anulacion {
 
 export interface Entrada extends Registro, Anulacion, Factura {
   id: string;
+  categoria_id: string | null;
+  categoria_nombre: string | null;
   proyecto_id: string;
   proyecto_nombre: string;
   empresa_id: string;
@@ -145,6 +155,8 @@ export interface Entrada extends Registro, Anulacion, Factura {
 
 export interface Salida extends Registro, Anulacion, Factura {
   id: string;
+  categoria_id: string | null;
+  categoria_nombre: string | null;
   proyecto_id: string;
   proyecto_nombre: string;
   empresa_id: string;
@@ -160,6 +172,33 @@ export interface Salida extends Registro, Anulacion, Factura {
 }
 
 export type Movimiento = Entrada | Salida;
+
+export interface Categoria extends Registro {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  activa: boolean;
+}
+
+export type TipoPendiente = "por_cobrar" | "por_pagar";
+export const NOMBRE_TIPO_PENDIENTE: Record<TipoPendiente, string> = { por_cobrar: "Por cobrar", por_pagar: "Por pagar" };
+
+/** Cuenta por cobrar o por pagar de un proyecto. No afecta saldos. */
+export interface Pendiente extends Registro {
+  id: string;
+  proyecto_id: string;
+  proyecto_nombre: string;
+  tipo: TipoPendiente;
+  concepto: string;
+  contraparte: string | null;
+  moneda: Moneda;
+  monto: string;
+  fecha_vencimiento: string | null;
+  liquidada: boolean;
+  fecha_liquidacion: string | null;
+  nota: string | null;
+  vencida: boolean;
+}
 
 export interface Reporte {
   titulo: string;
@@ -190,11 +229,15 @@ export const ACCIONES_BITACORA = {
   VINCULAR: "Vinculación",
   DESVINCULAR: "Desvinculación",
   CAMBIO_SALDO_INICIAL: "Cambio de saldo inicial",
+  SUBIR_FACTURA: "Factura adjunta",
+  ELIMINAR_FACTURA: "Factura eliminada",
+  LIQUIDAR: "Liquidación",
+  ELIMINAR: "Eliminación",
 } as const;
 
 export type AccionBitacora = keyof typeof ACCIONES_BITACORA;
 
-export const ENTIDADES_BITACORA = ["Usuario", "Empresa", "Cuenta", "Proyecto", "Entrada", "Salida"] as const;
+export const ENTIDADES_BITACORA = ["Usuario", "Empresa", "Cuenta", "Proyecto", "Entrada", "Salida", "Categoría", "Pendiente"] as const;
 
 export interface RegistroBitacora {
   id: string;

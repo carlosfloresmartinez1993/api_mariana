@@ -12,6 +12,7 @@ from app.core.errors import Conflicto, NoEncontrado, ReglaNegocio
 from app.models import AccionBitacora, Empresa, EmpresaProyecto, Entrada, Moneda, Proyecto, Salida
 from app.schemas.comun import Pagina
 from app.schemas.empresa import (
+    CAMPOS_PROYECCION,
     ProyectoActualizar,
     ProyectoCrear,
     ProyectoOut,
@@ -21,11 +22,13 @@ from app.schemas.empresa import (
     Vincular,
 )
 from app.services.acceso import obtener, verificar_autor
-from app.services.bitacora import registrar
+from app.services.bitacora import instantanea, registrar
 from app.services.movimientos import vincular
 from app.services.saldos import TotalesProyecto, totales_por_empresa
 
 router = APIRouter(prefix="/proyectos", tags=["Proyectos"])
+
+CAMPOS = ("nombre", "descripcion", *CAMPOS_PROYECCION)
 
 
 def _nombre_libre(db: Session, nombre: str, excepto: uuid.UUID | None = None) -> None:
@@ -83,11 +86,11 @@ def listar(db: DB, _: UsuarioActual, pag: PaginacionDep, q: str | None = None, e
 def crear(datos: ProyectoCrear, db: DB, usuario: UsuarioActual):
     """Solo se necesita el nombre. Las empresas se vinculan solas al capturar entradas o salidas."""
     _nombre_libre(db, datos.nombre)
-    proyecto = Proyecto(nombre=datos.nombre, descripcion=datos.descripcion, creado_por=usuario.id)
+    proyecto = Proyecto(**datos.model_dump(exclude={"empresa_ids"}), creado_por=usuario.id)
     db.add(proyecto)
     db.flush()
     registrar(db, usuario_id=usuario.id, entidad="Proyecto", entidad_id=proyecto.id, accion=AccionBitacora.CREAR,
-              detalle={"nombre": proyecto.nombre, "descripcion": proyecto.descripcion})
+              detalle={"despues": instantanea(proyecto, CAMPOS)})
     for empresa_id in dict.fromkeys(datos.empresa_ids):
         vincular(db, obtener(db, Empresa, empresa_id, "Empresa"), proyecto, usuario, automatico=False)
     db.commit()
@@ -111,11 +114,13 @@ def actualizar(proyecto_id: uuid.UUID, datos: ProyectoActualizar, db: DB, usuari
         if cambios["nombre"] is None:
             raise ReglaNegocio("El nombre no puede quedar vacío")
         _nombre_libre(db, cambios["nombre"], excepto=proyecto.id)
-    antes = {"nombre": proyecto.nombre, "descripcion": proyecto.descripcion}
+    antes = instantanea(proyecto, CAMPOS)
     for campo, valor in cambios.items():
         setattr(proyecto, campo, valor)
+    if proyecto.fecha_inicio_estimada and proyecto.fecha_fin_estimada             and proyecto.fecha_fin_estimada < proyecto.fecha_inicio_estimada:
+        raise ReglaNegocio("La fecha estimada de terminación no puede ser anterior a la de inicio")
     registrar(db, usuario_id=usuario.id, entidad="Proyecto", entidad_id=proyecto.id, accion=AccionBitacora.EDITAR,
-              detalle={"antes": antes, "despues": {"nombre": proyecto.nombre, "descripcion": proyecto.descripcion}})
+              detalle={"antes": antes, "despues": instantanea(proyecto, CAMPOS)})
     db.commit()
     return resumir(db, [proyecto])[0]
 
