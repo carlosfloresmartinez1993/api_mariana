@@ -131,6 +131,8 @@ export const api = {
     peticion(ruta, { method: "POST", json, query }).then(comoJson<T>),
   patch: <T>(ruta: string, json: unknown) => peticion(ruta, { method: "PATCH", json }).then(comoJson<T>),
   delete: (ruta: string, query?: Query) => peticion(ruta, { method: "DELETE", query }).then(comoJson<void>),
+  /** POST con formulario multipart (archivos). */
+  postForm: <T>(ruta: string, body: FormData) => peticion(ruta, { method: "POST", body }).then(comoJson<T>),
   put: <T>(ruta: string, body: BodyInit) => peticion(ruta, { method: "PUT", body }).then(comoJson<T>),
 
   /** Login OAuth2: el backend espera un formulario con username/password. */

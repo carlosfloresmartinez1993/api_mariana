@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from app.api.routes import (
     auth,
     bitacora,
+    carga_masiva,
     categorias,
     cuentas,
     empresas,
@@ -112,7 +113,7 @@ async def manejar_error_inesperado(_: Request, exc: Exception):
 
 
 for router in (auth.router, usuarios.router, empresas.router, cuentas.router, proyectos.router, categorias.router,
-               pendientes.router, movimientos.entradas, movimientos.salidas, reportes.router, bitacora.router):
+               pendientes.router, movimientos.entradas, movimientos.salidas, carga_masiva.router, reportes.router, bitacora.router):
     app.include_router(router)
 
 

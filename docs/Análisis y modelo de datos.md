@@ -1,6 +1,6 @@
 # Control de Empresas y Proyectos — Análisis y modelo de datos
 
-Versión 1.3 · 14 de octubre de 2026 · Implementado (sin traspasos ni saldo inicial; proyectos pueden quedar en negativo; facturas opcionales) · Stack: ver `Stack tecnológico - Control de Clientes.docx` (api-bancaria). Interfaz en blanco y negro.
+Versión 1.4 · 14 de octubre de 2026 · Implementado (carga masiva desde Excel; sin traspasos ni saldo inicial; proyectos pueden quedar en negativo; facturas opcionales) · Stack: ver `Stack tecnológico - Control de Clientes.docx` (api-bancaria). Interfaz en blanco y negro.
 
 ## 1. Módulos
 
@@ -59,6 +59,13 @@ Versión 1.3 · 14 de octubre de 2026 · Implementado (sin traspasos ni saldo in
 - R18c. **Categorías** (una sola lista para entradas y salidas, se administran en su propia pantalla). Son opcionales en cada movimiento; una categoría desactivada ya no se ofrece pero los movimientos la conservan.
 - R18d. **Proyecciones del proyecto** (todas opcionales): ingresos y gastos estimados en MXN y en USD, trabajadores estimados, fechas estimadas de inicio y terminación. **No afectan saldos**; se comparan contra lo real (ingresos netos y salidas).
 - R18e. **Cuentas por cobrar y por pagar**: partidas por proyecto (concepto, cliente o proveedor, moneda, monto, vencimiento, nota, liquidada). **No afectan saldos**: al cobrar o pagar se registra la entrada o salida y la partida se marca como liquidada. Se pueden editar y eliminar (queda en la bitácora).
+
+### Carga masiva desde Excel
+- R18f. Desde el detalle del proyecto («Carga masiva») se cargan entradas y salidas con el Excel del cliente: primera hoja con las columnas **FECHA, CONCEPTO, CARGO, ABONO** (el encabezado puede estar en cualquiera de las primeras 10 filas; las filas vacías se ignoran). **ABONO = entrada, CARGO = salida**; cada fila lleva uno de los dos. Fecha no futura; los cargos necesitan concepto.
+- Antes de empezar se muestra lo que debe existir: el proyecto activo, la empresa con sus cuentas activas y, opcionalmente, las categorías. El proyecto se vincula solo a la empresa.
+- El Excel no trae empresa ni cuentas: se eligen en pantalla la empresa, la cuenta de las entradas, la cuenta de las salidas, el % de gasto de las entradas, las categorías y «requiere factura». La forma sale del tipo de cuenta (caja → efectivo, banco → transferencia).
+- **Vista previa** sin registrar nada: errores por fila y columna, totales y saldo de cada cuenta antes y después. Solo al confirmar se registra.
+- **Todo o nada**, en una sola transacción: primero todas las entradas y después todas las salidas. Si una fila tiene error o la cuenta quedaría en negativo, no se registra nada. Cada movimiento queda en la bitácora con `origen: carga masiva` y el nombre del archivo. No se guarda un «lote»: cada movimiento se corrige o anula como cualquier otro.
 
 ### Sin traspasos
 - R19. No hay traspasos entre cuentas. Para llevar efectivo de la caja al banco se registra una **salida de la caja** y una **entrada sin %** al banco, del mismo proyecto y empresa.

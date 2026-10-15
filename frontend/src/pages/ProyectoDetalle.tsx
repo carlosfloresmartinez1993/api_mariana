@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
+import { CargaMasiva } from "../components/CargaMasiva";
 import { EntradaForm, SalidaForm } from "../components/formularios/MovimientoForms";
 import { ProyectoForm } from "../components/formularios/NombreForm";
 import { Icono } from "../components/Icono";
@@ -9,6 +10,7 @@ import { PendientesProyecto, ProyeccionVsReal } from "../components/Pendientes";
 import { Exportar, ReporteTabla } from "../components/ReporteTabla";
 import { useToast } from "../components/Toast";
 import {
+  Aviso,
   Boton,
   Campo,
   Cargando,
@@ -40,6 +42,7 @@ export default function ProyectoDetalle() {
   const [editando, setEditando] = useState(false);
   const [movimiento, setMovimiento] = useState<"entrada" | "salida" | null>(null);
   const [vincular, setVincular] = useState("");
+  const [carga, setCarga] = useState(false);
   const empresas = useEmpresasCatalogo();
 
   const proyecto = useQuery({ queryKey: ["proyectos", id], queryFn: () => api.get<Proyecto>(`/proyectos/${id}`) });
@@ -78,6 +81,7 @@ export default function ProyectoDetalle() {
           <>
             {p.activo && <Boton onClick={() => setMovimiento("entrada")}><Icono nombre="entradas" className="size-4" /> Entrada</Boton>}
             {p.activo && <Boton variante="secundario" onClick={() => setMovimiento("salida")}><Icono nombre="salidas" className="size-4" /> Salida</Boton>}
+            {p.activo && <Boton variante="secundario" onClick={() => setCarga(true)}><Icono nombre="subir" className="size-4" /> Carga masiva</Boton>}
             {corregible && <Boton variante="secundario" onClick={() => setEditando(true)}>Editar</Boton>}
             {corregible && (
               <Boton variante="secundario" onClick={() => accion(() => api.post(`/proyectos/${p.id}/${p.activo ? "desactivar" : "activar"}`),
@@ -88,6 +92,15 @@ export default function ProyectoDetalle() {
           </>
         }
       />
+
+      {p.activo && p.saldos.length === 0 && (
+        <Aviso className="mb-6" titulo="El proyecto aún no tiene movimientos">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>Si ya los tienes en Excel (FECHA, CONCEPTO, CARGO, ABONO), puedes cargarlos todos de una vez.</span>
+            <Boton tamano="sm" onClick={() => setCarga(true)}><Icono nombre="subir" className="size-4" /> Carga masiva desde Excel</Boton>
+          </div>
+        </Aviso>
+      )}
 
       {p.saldos.length > 0 && (
         <div className="mb-6 grid gap-4 md:grid-cols-2">
@@ -203,6 +216,7 @@ export default function ProyectoDetalle() {
       <ProyectoForm abierto={editando} proyecto={p} onCerrar={() => setEditando(false)} />
       <EntradaForm abierto={movimiento === "entrada"} proyectoId={p.id} onCerrar={() => setMovimiento(null)} />
       <SalidaForm abierto={movimiento === "salida"} proyectoId={p.id} onCerrar={() => setMovimiento(null)} />
+      <CargaMasiva abierto={carga} proyecto={p} onCerrar={() => setCarga(false)} />
     </>
   );
 }
