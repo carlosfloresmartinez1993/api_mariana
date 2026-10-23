@@ -1,9 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.tiempo import hoy
 from app.main import app
 
 from tests.helpers import (
@@ -87,7 +88,7 @@ def test_porcentaje_invalido(client, escenario, porcentaje):
 
 def test_fecha_futura(client, escenario):
     e = escenario
-    manana = (date.today() + timedelta(days=2)).isoformat()
+    manana = (hoy() + timedelta(days=2)).isoformat()
     entrada(client, e["h"], e["proyecto"], e["banco"], "100", fecha=manana, esperado=422)
 
 
@@ -247,7 +248,7 @@ def test_salidas_simultaneas_no_rebasan_el_saldo(client, escenario):
     e = escenario
     entrada(client, e["h"], e["proyecto"], e["banco"], "100")
     datos = {"proyecto_id": e["proyecto"]["id"], "empresa_id": e["empresa"]["id"], "cuenta_id": e["banco"]["id"],
-             "fecha": date.today().isoformat(), "forma": "transferencia", "monto": "60", "concepto": "Pago"}
+             "fecha": hoy().isoformat(), "forma": "transferencia", "monto": "60", "concepto": "Pago"}
 
     def pagar(_):
         with TestClient(app) as c:
