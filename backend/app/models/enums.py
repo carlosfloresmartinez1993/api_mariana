@@ -30,6 +30,13 @@ class Forma(StrEnum):
         return TipoCuenta.BANCO if self == Forma.TRANSFERENCIA else TipoCuenta.CAJA
 
 
+class TipoEstimado(StrEnum):
+    """Partida de la proyección de un proyecto: ingreso o gasto estimado."""
+
+    INGRESO = "ingreso"
+    GASTO = "gasto"
+
+
 class TipoPendiente(StrEnum):
     """Cuenta pendiente de un proyecto: lo que le deben (por cobrar) o lo que debe (por pagar)."""
 

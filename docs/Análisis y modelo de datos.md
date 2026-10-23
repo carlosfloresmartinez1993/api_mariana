@@ -1,6 +1,6 @@
 # Control de Empresas y Proyectos — Análisis y modelo de datos
 
-Versión 1.4 · 14 de octubre de 2026 · Implementado (carga masiva desde Excel; sin traspasos ni saldo inicial; proyectos pueden quedar en negativo; facturas opcionales) · Stack: ver `Stack tecnológico - Control de Clientes.docx` (api-bancaria). Interfaz en blanco y negro.
+Versión 1.5 · 22 de octubre de 2026 · Implementado (proyección por categoría; carga masiva desde Excel; sin traspasos ni saldo inicial; proyectos pueden quedar en negativo; facturas opcionales) · Stack: ver `Stack tecnológico - Control de Clientes.docx` (api-bancaria). Interfaz en blanco y negro.
 
 ## 1. Módulos
 
@@ -58,6 +58,7 @@ Versión 1.4 · 14 de octubre de 2026 · Implementado (carga masiva desde Excel;
 ### Categorías, proyecciones y cuentas por cobrar / pagar
 - R18c. **Categorías** (una sola lista para entradas y salidas, se administran en su propia pantalla). Son opcionales en cada movimiento; una categoría desactivada ya no se ofrece pero los movimientos la conservan.
 - R18d. **Proyecciones del proyecto** (todas opcionales): ingresos y gastos estimados en MXN y en USD, trabajadores estimados, fechas estimadas de inicio y terminación. **No afectan saldos**; se comparan contra lo real (ingresos netos y salidas).
+- R18d-bis. **Proyección por categoría** (opcional): partidas estimadas del proyecto (tipo ingreso o gasto, categoría opcional, concepto opcional, moneda y monto), al crear el proyecto o después en su detalle. Si el proyecto tiene partidas, sus totales estimados de ingresos y gastos por moneda **son la suma de ellas** y ya no se capturan a mano (se recalculan en cada alta, edición o eliminación). El reporte «Estimado contra real por categoría» compara cada categoría contra las entradas (neto) y salidas reales de esa categoría; lo real sin categoría va en «Sin categoría». Tabla `partidas_estimadas` (migración 0006, solo agrega). No afectan saldos; se pueden editar y eliminar (queda en la bitácora).
 - R18e. **Cuentas por cobrar y por pagar**: partidas por proyecto (concepto, cliente o proveedor, moneda, monto, vencimiento, nota, liquidada). **No afectan saldos**: al cobrar o pagar se registra la entrada o salida y la partida se marca como liquidada. Se pueden editar y eliminar (queda en la bitácora).
 
 ### Carga masiva desde Excel

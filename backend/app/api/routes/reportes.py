@@ -121,7 +121,12 @@ def por_categoria(db: DB, usuario: UsuarioActual, formato: FormatoQ = Formato.JS
 
 @router.get("/estimado-vs-real", **DOC, summary="Proyecciones del proyecto contra lo real")
 def estimado_vs_real(db: DB, usuario: UsuarioActual, formato: FormatoQ = Formato.JSON,
-                     proyecto_id: uuid.UUID | None = None, solo_con_estimados: bool = False):
+                     proyecto_id: uuid.UUID | None = None, solo_con_estimados: bool = False,
+                     por_categoria: bool = False):
+    """Con `por_categoria`, las partidas estimadas de cada categoría contra lo real de esa categoría."""
+    if por_categoria:
+        reporte = svc.estimado_vs_real_por_categoria(db, proyecto_id=proyecto_id)
+        return responder(reporte, formato, "estimado-vs-real-por-categoria", usuario)
     reporte = svc.estimado_vs_real(db, proyecto_id=proyecto_id, solo_con_estimados=solo_con_estimados)
     return responder(reporte, formato, "estimado-vs-real", usuario)
 

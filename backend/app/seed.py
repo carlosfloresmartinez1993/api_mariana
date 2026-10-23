@@ -22,16 +22,19 @@ from app.models import (
     Cuenta,
     Empresa,
     Moneda,
+    PartidaEstimada,
     Pendiente,
     Proyecto,
     Rol,
     TipoCuenta,
+    TipoEstimado,
     TipoPendiente,
     Usuario,
 )
 from app.schemas.movimiento import EntradaCrear, SalidaCrear
 from app.services.bitacora import registrar
 from app.services.movimientos import crear_entrada, crear_salida, vincular
+from app.services.proyecciones import recalcular
 
 DEMO_PASSWORD = "Demo2026"
 USUARIOS = [("Admin Demo", "admin@demo.local", Rol.ADMIN), ("Ana Contadora", "ana@demo.local", Rol.CONTADOR),
@@ -154,6 +157,18 @@ def main() -> int:
                 (palmas, TipoPendiente.POR_COBRAR, "Venta casa 3", "Cliente particular", Moneda.MXN, "380000", 30)):
             db.add(Pendiente(proyecto_id=proy.id, tipo=tipo, concepto=concepto, contraparte=contraparte, moneda=moneda,
                              monto=Decimal(monto), fecha_vencimiento=hoy() + timedelta(days=dias), creado_por=ana.id))
+        # Proyección por categoría de Torre Reforma: sus totales estimados pasan a ser la suma de las partidas.
+        for tipo, categoria, concepto, moneda, monto in (
+                (TipoEstimado.INGRESO, "Anticipos", "Anticipo del cliente", Moneda.MXN, "500000"),
+                (TipoEstimado.INGRESO, "Ventas", "Estimaciones de obra", Moneda.MXN, "1000000"),
+                (TipoEstimado.INGRESO, "Ventas", "Equipamiento importado", Moneda.USD, "25000"),
+                (TipoEstimado.GASTO, "Materiales", "Cemento, acero y block", Moneda.MXN, "550000"),
+                (TipoEstimado.GASTO, "Nómina", None, Moneda.MXN, "300000"),
+                (TipoEstimado.GASTO, "Servicios", "Renta de maquinaria", Moneda.MXN, "50000"),
+                (TipoEstimado.GASTO, "Materiales", "Elevador", Moneda.USD, "15000")):
+            db.add(PartidaEstimada(proyecto_id=torre.id, tipo=tipo, categoria_id=cat[categoria].id, concepto=concepto,
+                                   moneda=moneda, monto=Decimal(monto), creado_por=ana.id))
+        recalcular(db, torre)
         db.commit()
     print(f"seed: datos de demostración cargados. Usuarios: {', '.join(c for _, c, _ in USUARIOS)}")
     return 0

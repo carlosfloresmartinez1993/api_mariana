@@ -18,6 +18,7 @@ Dockerfile  imagen única: API en /api y frontend en /
 - **Entradas** a un proyecto: empresa, cuenta, transferencia o efectivo y un % de gasto opcional distinto en cada una. El gasto se lo queda el proveedor: a la cuenta llega el neto.
 - **Salidas** de un proyecto desde una cuenta de una empresa. Un proyecto **puede quedar en negativo** (si tuvo pérdida, se paga con el dinero de otros proyectos que está en la cuenta); lo que no puede quedar en negativo es la cuenta. Los saldos negativos se ven en rojo.
 - **Facturas (opcional)** en entradas y salidas: casilla «requiere factura» y archivo PDF, XML, JPG o PNG. Se guardan en `ARCHIVOS_DIR` o en un bucket S3 (`ALMACENAMIENTO=s3`; en Render gratuito el disco se borra en cada despliegue, así que en producción conviene S3, por ejemplo Cloudflare R2).
+- **Proyección por categoría** (opcional): ingresos y gastos estimados por categoría y concepto, en MXN o USD. Si un proyecto tiene partidas, sus totales estimados son la suma. Reporte «Estimado contra real por categoría».
 - **Carga masiva desde Excel** en un proyecto: columnas FECHA, CONCEPTO, CARGO (salida) y ABONO (entrada). Se eligen empresa y cuentas, se revisa una vista previa y al confirmar se registran primero las entradas y después las salidas. Todo o nada.
 - **Sin traspasos**: para llevar efectivo de la caja al banco se registra una salida de la caja y una entrada sin % al banco, del mismo proyecto.
 - Nada se borra: los movimientos se **anulan con motivo**.

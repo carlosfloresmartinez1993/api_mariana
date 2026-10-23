@@ -15,14 +15,15 @@ from sqlalchemy import (
     UniqueConstraint,
     event,
     func,
+    select,
     text,
     true,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from app.db.base import Base, UUIDPk
 from app.models.comun import Registrado
-from app.models.enums import Moneda, TipoCuenta, TipoPendiente, enum_columna
+from app.models.enums import Moneda, TipoCuenta, TipoEstimado, TipoPendiente, enum_columna
 
 
 class Empresa(UUIDPk, Registrado, Base):
@@ -136,6 +137,39 @@ class Categoria(UUIDPk, Registrado, Base):
     nombre: Mapped[str] = mapped_column(String(100))
     descripcion: Mapped[str | None] = mapped_column(String(255))
     activa: Mapped[bool] = mapped_column(default=True, server_default=true())
+
+
+class PartidaEstimada(UUIDPk, Registrado, Base):
+    """Ingreso o gasto estimado de un proyecto, por categoría y moneda. No afecta saldos.
+
+    Si el proyecto tiene partidas, sus totales estimados (estimado_ingresos_mxn, …) son la suma de ellas.
+    """
+
+    __tablename__ = "partidas_estimadas"
+    __table_args__ = (
+        CheckConstraint("monto > 0", name="monto_positivo"),
+        Index("ix_partidas_estimadas_proyecto_tipo", "proyecto_id", "tipo"),
+    )
+
+    proyecto_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("proyectos.id", ondelete="RESTRICT"))
+    tipo: Mapped[TipoEstimado] = mapped_column(enum_columna(TipoEstimado, "tipo_estimado", 7))
+    categoria_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("categorias.id", ondelete="RESTRICT"),
+                                                           index=True)
+    concepto: Mapped[str | None] = mapped_column(String(255))
+    moneda: Mapped[Moneda] = mapped_column(enum_columna(Moneda, "moneda", 3))
+    monto: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+
+    proyecto: Mapped[Proyecto] = relationship(lazy="joined", innerjoin=True)
+    categoria: Mapped[Categoria | None] = relationship(lazy="joined")
+
+    @property
+    def categoria_nombre(self) -> str | None:
+        return self.categoria.nombre if self.categoria else None
+
+
+Proyecto.num_partidas_estimadas = column_property(
+    select(func.count(PartidaEstimada.id)).where(PartidaEstimada.proyecto_id == Proyecto.id)
+    .correlate_except(PartidaEstimada).scalar_subquery())
 
 
 class Pendiente(UUIDPk, Registrado, Base):

@@ -75,6 +75,14 @@ const REPORTES: Record<string, Definicion> = {
     filtros: ["proyecto"],
     sinPeriodo: true,
   },
+  "estimado-vs-real-categoria": {
+    titulo: "Estimado contra real por categoría",
+    descripcion: "Ingresos y gastos estimados por categoría (partidas de la proyección) contra las entradas (neto) y salidas reales de esa categoría. Solo proyectos con partidas.",
+    ruta: () => "/reportes/estimado-vs-real",
+    fijos: { por_categoria: true },
+    filtros: ["proyecto"],
+    sinPeriodo: true,
+  },
   "cuentas-por-cobrar-pagar": {
     titulo: "Cuentas por cobrar y por pagar",
     descripcion: "Partidas pendientes de todos los proyectos, con vencimiento. No afectan saldos.",
