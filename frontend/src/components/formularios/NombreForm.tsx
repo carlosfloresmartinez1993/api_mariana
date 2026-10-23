@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { montoParaApi, montoParaEditar } from "../../lib/format";
 import type { Empresa, Proyecto } from "../../lib/types";
 import { useEnvio } from "../../lib/useEnvio";
+import { EditorPartidas, partidaParaApi, totalesDePartidas, type PartidaBorrador } from "../PartidasEstimadas";
 import { useToast } from "../Toast";
 import { Boton, Campo, ErrorApi, Input, InputMonto, Modal, PieModal, Textarea } from "../ui";
 
@@ -86,9 +87,16 @@ export function ProyectoForm({ abierto, proyecto, onCerrar, onCreado }: {
   const [trabajadores, setTrabajadores] = useState("");
   const [inicio, setInicio] = useState("");
   const [fin, setFin] = useState("");
+  const [partidas, setPartidas] = useState<PartidaBorrador[]>([]);
+  // Con partidas, los totales estimados son su suma y no se capturan a mano.
+  const conPartidas = proyecto ? proyecto.num_partidas_estimadas > 0 : partidas.length > 0;
+  const sumas = totalesDePartidas(partidas);
+  const valorMonto = (clave: ClaveMonto) =>
+    !conPartidas ? montos[clave] : proyecto ? montoParaEditar(proyecto[clave]) : sumas[clave] ? montoParaEditar(sumas[clave].toFixed(2)) : "";
 
   useEffect(() => {
     if (abierto) {
+      setPartidas([]);
       setNombre(proyecto?.nombre ?? "");
       setDescripcion(proyecto?.descripcion ?? "");
       setMontos({
@@ -110,7 +118,8 @@ export function ProyectoForm({ abierto, proyecto, onCerrar, onCreado }: {
       const datos = {
         nombre,
         descripcion: descripcion.trim() || null,
-        ...Object.fromEntries(MONTOS_ESTIMADOS.map(([clave]) => [clave, montos[clave] ? montoParaApi(montos[clave]) : null])),
+        ...(conPartidas ? {} : Object.fromEntries(MONTOS_ESTIMADOS.map(([clave]) => [clave, montos[clave] ? montoParaApi(montos[clave]) : null]))),
+        ...(proyecto ? {} : { partidas: partidas.map(partidaParaApi) }),
         trabajadores_estimados: trabajadores ? Number(trabajadores) : null,
         fecha_inicio_estimada: inicio || null,
         fecha_fin_estimada: fin || null,
@@ -130,7 +139,7 @@ export function ProyectoForm({ abierto, proyecto, onCerrar, onCreado }: {
   }
 
   return (
-    <Modal abierto={abierto} titulo={proyecto ? "Editar proyecto" : "Nuevo proyecto"} onCerrar={onCerrar} ancho="lg"
+    <Modal abierto={abierto} titulo={proyecto ? "Editar proyecto" : "Nuevo proyecto"} onCerrar={onCerrar} ancho={proyecto ? "lg" : "xl"}
       descripcion={proyecto ? undefined : "Solo se necesita el nombre. Las empresas se vinculan solas al registrar entradas o salidas."}>
       <form onSubmit={guardar} className="space-y-4">
         <Campo etiqueta="Nombre" requerido>
@@ -147,11 +156,20 @@ export function ProyectoForm({ abierto, proyecto, onCerrar, onCreado }: {
           <div className="grid gap-4 sm:grid-cols-2">
             {MONTOS_ESTIMADOS.map(([clave, etiqueta]) => (
               <Campo key={clave} etiqueta={etiqueta}>
-                {(id) => <InputMonto id={id} value={montos[clave]} placeholder="0.00"
+                {(id) => <InputMonto id={id} value={valorMonto(clave)} placeholder="0.00" disabled={conPartidas}
                   onChange={(v) => setMontos((m) => ({ ...m, [clave]: v }))} />}
               </Campo>
             ))}
           </div>
+          {proyecto ? (
+            conPartidas && <p className="text-xs text-neutral-500">Los totales se calculan con las partidas por categoría; edítalas en el detalle del proyecto.</p>
+          ) : (
+            <div>
+              <p className="mb-2 text-sm font-medium text-neutral-800">Por categoría o concepto (opcional)</p>
+              <p className="mb-2 text-xs text-neutral-500">Si agregas partidas, los totales de arriba se calculan solos con su suma.</p>
+              <EditorPartidas partidas={partidas} onCambiar={setPartidas} />
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-3">
             <Campo etiqueta="Trabajadores estimados">
               {(id) => <Input id={id} type="number" min={0} step={1} value={trabajadores} onChange={(e) => setTrabajadores(e.target.value)} />}

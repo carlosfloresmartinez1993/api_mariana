@@ -21,10 +21,12 @@ from app.models import (
     EmpresaProyecto,
     Entrada,
     Moneda,
+    PartidaEstimada,
     Pendiente,
     Proyecto,
     Salida,
     TipoCuenta,
+    TipoEstimado,
     TipoPendiente,
 )
 from app.services.exportacion import Reporte
@@ -424,6 +426,65 @@ def estimado_vs_real(db: Session, *, proyecto_id: uuid.UUID | None = None,
                                             "gastos_reales", "resultado_estimado", "resultado_real",
                                             "por_cobrar", "por_pagar"), "proyecto"),
         parametros={**({"Proyecto": proyectos[0].nombre} if proyecto_id and proyectos else {})},
+    )
+
+
+def estimado_vs_real_por_categoria(db: Session, *, proyecto_id: uuid.UUID | None = None) -> Reporte:
+    """Por proyecto, categoría y moneda: ingresos y gastos estimados (partidas) contra las entradas (neto) y salidas
+    reales de esa categoría. Solo proyectos con partidas estimadas. Lo real sin categoría va en «Sin categoría»."""
+    consulta = select(PartidaEstimada.proyecto_id).distinct()
+    if proyecto_id:
+        consulta = consulta.where(PartidaEstimada.proyecto_id == proyecto_id)
+    ids = list(db.scalars(consulta))
+    filas_por: dict[tuple, dict[str, Any]] = {}
+
+    def fila(proyecto: str, categoria: str | None, moneda) -> dict[str, Any]:
+        categoria = categoria or SIN_CATEGORIA
+        return filas_por.setdefault((proyecto, categoria, Moneda(moneda)), {
+            "proyecto": proyecto, "categoria": categoria, "moneda": Moneda(moneda),
+            "ingresos_estimados": None, "ingresos_reales": CERO, "gastos_estimados": None, "gastos_reales": CERO})
+
+    if ids:
+        for proyecto, categoria, tipo, moneda, total in db.execute(
+                select(Proyecto.nombre, Categoria.nombre, PartidaEstimada.tipo, PartidaEstimada.moneda,
+                       func.sum(PartidaEstimada.monto))
+                .select_from(PartidaEstimada).join(Proyecto, PartidaEstimada.proyecto_id == Proyecto.id)
+                .outerjoin(Categoria, PartidaEstimada.categoria_id == Categoria.id)
+                .where(PartidaEstimada.proyecto_id.in_(ids))
+                .group_by(Proyecto.nombre, Categoria.nombre, PartidaEstimada.tipo, PartidaEstimada.moneda)):
+            clave = "ingresos_estimados" if TipoEstimado(tipo) == TipoEstimado.INGRESO else "gastos_estimados"
+            f = fila(proyecto, categoria, moneda)
+            f[clave] = (f[clave] or CERO) + Decimal(total)
+        for modelo, columna, clave in ((Entrada, Entrada.monto_neto, "ingresos_reales"),
+                                       (Salida, Salida.monto, "gastos_reales")):
+            for proyecto, categoria, moneda, total in db.execute(
+                    select(Proyecto.nombre, Categoria.nombre, modelo.moneda, func.sum(columna))
+                    .select_from(modelo).join(Proyecto, modelo.proyecto_id == Proyecto.id)
+                    .outerjoin(Categoria, modelo.categoria_id == Categoria.id)
+                    .where(modelo.anulado.is_(False), modelo.proyecto_id.in_(ids))
+                    .group_by(Proyecto.nombre, Categoria.nombre, modelo.moneda)):
+                fila(proyecto, categoria, moneda)[clave] += Decimal(total)
+
+    filas = list(filas_por.values())
+    for f in filas:
+        f["avance_ingresos"] = _porcentaje(f["ingresos_reales"], f["ingresos_estimados"])
+        f["avance_gastos"] = _porcentaje(f["gastos_reales"], f["gastos_estimados"])
+        # Negativo = falta por recibir (ingresos) o se gastó de más (gastos).
+        f["diferencia_ingresos"] = f["ingresos_reales"] - (f["ingresos_estimados"] or CERO)
+        f["disponible_gastos"] = (f["gastos_estimados"] or CERO) - f["gastos_reales"]
+    filas.sort(key=lambda f: (f["proyecto"].lower(), f["moneda"], f["categoria"] == SIN_CATEGORIA,
+                              f["categoria"].lower()))
+    return Reporte(
+        titulo="Estimado contra real por categoría",
+        columnas=[("proyecto", "Proyecto"), ("categoria", "Categoría"), ("moneda", "Moneda"),
+                  ("ingresos_estimados", "Ingresos estimados"), ("ingresos_reales", "Ingresos reales (neto)"),
+                  ("avance_ingresos", "% ingresos"), ("diferencia_ingresos", "Diferencia ingresos"),
+                  ("gastos_estimados", "Gastos estimados"), ("gastos_reales", "Salidas reales"),
+                  ("avance_gastos", "% gastos"), ("disponible_gastos", "Disponible para gastos")],
+        filas=filas,
+        totales=_totales_por_moneda(filas, ("ingresos_estimados", "ingresos_reales", "diferencia_ingresos",
+                                            "gastos_estimados", "gastos_reales", "disponible_gastos"), "proyecto"),
+        parametros={**({"Proyecto": _nombre(db, Proyecto, proyecto_id)} if proyecto_id else {})},
     )
 
 

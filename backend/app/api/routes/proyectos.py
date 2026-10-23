@@ -23,6 +23,7 @@ from app.schemas.empresa import (
 )
 from app.services.acceso import obtener, verificar_autor
 from app.services.bitacora import instantanea, registrar
+from app.services import proyecciones
 from app.services.movimientos import vincular
 from app.services.saldos import TotalesProyecto, totales_por_empresa
 
@@ -86,11 +87,16 @@ def listar(db: DB, _: UsuarioActual, pag: PaginacionDep, q: str | None = None, e
 def crear(datos: ProyectoCrear, db: DB, usuario: UsuarioActual):
     """Solo se necesita el nombre. Las empresas se vinculan solas al capturar entradas o salidas."""
     _nombre_libre(db, datos.nombre)
-    proyecto = Proyecto(**datos.model_dump(exclude={"empresa_ids"}), creado_por=usuario.id)
+    proyecto = Proyecto(**datos.model_dump(exclude={"empresa_ids", "partidas"}), creado_por=usuario.id)
     db.add(proyecto)
     db.flush()
+    # Con partidas, los totales estimados son su suma.
+    for partida in datos.partidas:
+        proyecciones.agregar(db, proyecto, partida, usuario)
+    if datos.partidas:
+        proyecciones.recalcular(db, proyecto)
     registrar(db, usuario_id=usuario.id, entidad="Proyecto", entidad_id=proyecto.id, accion=AccionBitacora.CREAR,
-              detalle={"despues": instantanea(proyecto, CAMPOS)})
+              detalle={"despues": instantanea(proyecto, CAMPOS), "partidas_estimadas": len(datos.partidas)})
     for empresa_id in dict.fromkeys(datos.empresa_ids):
         vincular(db, obtener(db, Empresa, empresa_id, "Empresa"), proyecto, usuario, automatico=False)
     db.commit()
@@ -114,6 +120,7 @@ def actualizar(proyecto_id: uuid.UUID, datos: ProyectoActualizar, db: DB, usuari
         if cambios["nombre"] is None:
             raise ReglaNegocio("El nombre no puede quedar vacío")
         _nombre_libre(db, cambios["nombre"], excepto=proyecto.id)
+    proyecciones.validar_estimados_manuales(proyecto, cambios)
     antes = instantanea(proyecto, CAMPOS)
     for campo, valor in cambios.items():
         setattr(proyecto, campo, valor)

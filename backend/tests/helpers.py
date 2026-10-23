@@ -1,9 +1,11 @@
-from datetime import date
 from typing import Any
 
 from fastapi.testclient import TestClient
 
-HOY = date.today().isoformat()
+from app.core.tiempo import hoy
+
+# La fecha del negocio (TIMEZONE), no la del servidor: en CI (UTC) ya puede ser mañana.
+HOY = hoy().isoformat()
 
 
 def ok(respuesta, codigo: int = 200) -> Any:

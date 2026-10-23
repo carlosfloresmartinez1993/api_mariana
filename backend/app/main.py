@@ -16,6 +16,7 @@ from app.api.routes import (
     cuentas,
     empresas,
     movimientos,
+    partidas_estimadas,
     pendientes,
     proyectos,
     reportes,
@@ -113,7 +114,8 @@ async def manejar_error_inesperado(_: Request, exc: Exception):
 
 
 for router in (auth.router, usuarios.router, empresas.router, cuentas.router, proyectos.router, categorias.router,
-               pendientes.router, movimientos.entradas, movimientos.salidas, carga_masiva.router, reportes.router, bitacora.router):
+               partidas_estimadas.router, pendientes.router, movimientos.entradas, movimientos.salidas,
+               carga_masiva.router, reportes.router, bitacora.router):
     app.include_router(router)
 
 

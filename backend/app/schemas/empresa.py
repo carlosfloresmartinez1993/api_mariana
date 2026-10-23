@@ -4,8 +4,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.models.enums import Moneda, TipoCuenta
-from app.schemas.comun import DineroNoNegativo, Nombre100, Nombre200, ORMModel, TextoOpcional
+from app.models.enums import Moneda, TipoCuenta, TipoEstimado
+from app.schemas.comun import Dinero, DineroNoNegativo, Nombre100, Nombre200, ORMModel, TextoOpcional
 
 
 class Registro(ORMModel):
@@ -95,6 +95,36 @@ class Proyeccion(BaseModel):
 
 
 CAMPOS_PROYECCION = tuple(Proyeccion.model_fields)
+CAMPOS_ESTIMADOS = ("estimado_ingresos_mxn", "estimado_gastos_mxn", "estimado_ingresos_usd", "estimado_gastos_usd")
+
+
+class PartidaEstimadaCrear(BaseModel):
+    """Ingreso o gasto estimado por categoría (opcional) y concepto (opcional)."""
+
+    tipo: TipoEstimado
+    categoria_id: uuid.UUID | None = None
+    concepto: TextoOpcional = None
+    moneda: Moneda
+    monto: Dinero
+
+
+class PartidaEstimadaActualizar(BaseModel):
+    tipo: TipoEstimado | None = None
+    categoria_id: uuid.UUID | None = None
+    concepto: TextoOpcional = None
+    moneda: Moneda | None = None
+    monto: Dinero | None = None
+
+
+class PartidaEstimadaOut(Registro):
+    id: uuid.UUID
+    proyecto_id: uuid.UUID
+    tipo: TipoEstimado
+    categoria_id: uuid.UUID | None
+    categoria_nombre: str | None
+    concepto: str | None
+    moneda: Moneda
+    monto: Decimal
 
 
 class ProyectoCrear(Proyeccion):
@@ -102,6 +132,8 @@ class ProyectoCrear(Proyeccion):
     descripcion: TextoOpcional = Field(default=None, max_length=2000)
     # Empresas a las que se vincula desde el inicio (opcional; también se vincula sola al capturar).
     empresa_ids: list[uuid.UUID] = []
+    # Si se dan partidas, los totales estimados se calculan con ellas.
+    partidas: list[PartidaEstimadaCrear] = Field(default=[], max_length=500)
 
 
 class ProyectoActualizar(Proyeccion):
@@ -143,6 +175,8 @@ class ProyectoOut(Registro):
     trabajadores_estimados: int | None
     fecha_inicio_estimada: date | None
     fecha_fin_estimada: date | None
+    # Si es mayor que cero, los totales estimados son la suma de las partidas (no se capturan a mano).
+    num_partidas_estimadas: int
 
 
 class ProyectoResumen(ProyectoOut):

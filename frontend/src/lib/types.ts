@@ -111,6 +111,8 @@ export interface Proyecto extends Registro {
   trabajadores_estimados: number | null;
   fecha_inicio_estimada: string | null;
   fecha_fin_estimada: string | null;
+  /** Si es mayor que cero, los totales estimados son la suma de las partidas (no se capturan a mano). */
+  num_partidas_estimadas: number;
   /** Todas las empresas. */
   saldos: SaldoProyecto[];
   saldos_por_empresa: SaldoProyectoEmpresa[];
@@ -180,6 +182,21 @@ export interface Categoria extends Registro {
   activa: boolean;
 }
 
+export type TipoEstimado = "ingreso" | "gasto";
+export const NOMBRE_TIPO_ESTIMADO: Record<TipoEstimado, string> = { ingreso: "Ingreso", gasto: "Gasto" };
+
+/** Ingreso o gasto estimado de un proyecto, por categoría y concepto (opcionales). No afecta saldos. */
+export interface PartidaEstimada extends Registro {
+  id: string;
+  proyecto_id: string;
+  tipo: TipoEstimado;
+  categoria_id: string | null;
+  categoria_nombre: string | null;
+  concepto: string | null;
+  moneda: Moneda;
+  monto: string;
+}
+
 export type TipoPendiente = "por_cobrar" | "por_pagar";
 export const NOMBRE_TIPO_PENDIENTE: Record<TipoPendiente, string> = { por_cobrar: "Por cobrar", por_pagar: "Por pagar" };
 
@@ -237,7 +254,7 @@ export const ACCIONES_BITACORA = {
 
 export type AccionBitacora = keyof typeof ACCIONES_BITACORA;
 
-export const ENTIDADES_BITACORA = ["Usuario", "Empresa", "Cuenta", "Proyecto", "Entrada", "Salida", "Categoría", "Pendiente"] as const;
+export const ENTIDADES_BITACORA = ["Usuario", "Empresa", "Cuenta", "Proyecto", "Entrada", "Salida", "Categoría", "Pendiente", "Partida estimada"] as const;
 
 export interface RegistroBitacora {
   id: string;

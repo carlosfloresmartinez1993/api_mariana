@@ -6,6 +6,7 @@ import { CargaMasiva } from "../components/CargaMasiva";
 import { EntradaForm, SalidaForm } from "../components/formularios/MovimientoForms";
 import { ProyectoForm } from "../components/formularios/NombreForm";
 import { Icono } from "../components/Icono";
+import { PartidasProyecto } from "../components/PartidasEstimadas";
 import { PendientesProyecto, ProyeccionVsReal } from "../components/Pendientes";
 import { Exportar, ReporteTabla } from "../components/ReporteTabla";
 import { useToast } from "../components/Toast";
@@ -119,6 +120,7 @@ export default function ProyectoDetalle() {
       )}
 
       <ProyeccionVsReal proyecto={p} />
+      <PartidasProyecto proyecto={p} />
 
       {p.saldos_por_empresa.length > 0 && (
         <>
