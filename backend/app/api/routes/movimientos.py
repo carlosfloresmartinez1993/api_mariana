@@ -157,8 +157,8 @@ def _rutas_factura(router: APIRouter, modelo, nombre: str, esquema) -> None:
 
     @router.get("/{mov_id}/factura", response_class=Response, summary="Ver o descargar la factura")
     def descargar(mov_id: uuid.UUID, db: DB, _: UsuarioActual):
-        datos, tipo, disposicion = facturas.contenido(obtener(db, modelo, mov_id, nombre))
-        return Response(datos, media_type=tipo, headers={"Content-Disposition": disposicion})
+        datos, tipo, encabezados = facturas.contenido(obtener(db, modelo, mov_id, nombre))
+        return Response(datos, media_type=tipo, headers=encabezados)
 
     @router.delete("/{mov_id}/factura", response_model=esquema, summary="Quitar la factura")
     def quitar(mov_id: uuid.UUID, db: DB, usuario: UsuarioActual):

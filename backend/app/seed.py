@@ -2,7 +2,8 @@
 
     python -m app.seed
 
-Solo se cargan si la base no tiene empresas (es seguro ejecutarlo varias veces). Los movimientos se
+Solo se cargan si la base no tiene empresas ni más usuarios que el superusuario (es seguro ejecutarlo
+varias veces), y nunca con ENVIRONMENT=production: crearía usuarios con una contraseña publicada. Los movimientos se
 registran con los mismos servicios que usa la API, así que pasan por todas las validaciones y quedan
 en la bitácora. Los usuarios de demostración usan la contraseña DEMO_PASSWORD.
 """
@@ -13,6 +14,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 
+from app.core.config import settings
 from app.core.security import hash_password
 from app.core.tiempo import hoy
 from app.db.session import SessionLocal
@@ -42,9 +44,16 @@ USUARIOS = [("Admin Demo", "admin@demo.local", Rol.ADMIN), ("Ana Contadora", "an
 
 
 def main() -> int:
+    if settings.ENVIRONMENT == "production":
+        print("seed: no se cargan datos de demostración con ENVIRONMENT=production", file=sys.stderr)
+        return 1
     with SessionLocal() as db:
         if db.scalar(select(func.count()).select_from(Empresa)):
             print("seed: la base ya tiene empresas; no se hace nada")
+            return 1
+        # Tras vaciar la base (p. ej. con la migración 0005) ya no hay empresas, pero puede haber usuarios reales.
+        if db.scalar(select(func.count()).select_from(Usuario).where(Usuario.rol != Rol.SUPERUSUARIO)):
+            print("seed: la base ya tiene usuarios; no se hace nada")
             return 1
 
         usuarios = {}

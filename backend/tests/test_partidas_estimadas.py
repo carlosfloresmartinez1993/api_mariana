@@ -97,11 +97,12 @@ def test_reporte_estimado_contra_real_por_categoria(client, base):
         assert r.status_code == 200, r.text
 
 
-def test_seed_con_partidas_estimadas(client, admin):
+def test_seed_con_partidas_estimadas(client, superusuario):
     from app import seed
 
+    # Los datos de demostración solo se cargan en una base sin usuarios (aparte del superusuario).
     assert seed.main() == 0
-    torre = next(p for p in ok(client.get("/proyectos", params={"q": "Torre"}, headers=admin[1]))["items"])
+    torre = next(p for p in ok(client.get("/proyectos", params={"q": "Torre"}, headers=superusuario[1]))["items"])
     assert torre["num_partidas_estimadas"] == 7
     assert (torre["estimado_ingresos_mxn"], torre["estimado_gastos_mxn"]) == ("1500000.00", "900000.00")
     assert (torre["estimado_ingresos_usd"], torre["estimado_gastos_usd"]) == ("25000.00", "15000.00")

@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.core.tiempo import hoy
 
-# La fecha del negocio (TIMEZONE), no la del servidor: en CI (UTC) ya puede ser mañana.
+# Mismo "hoy" que la API (zona horaria del negocio); con date.today() fallan en CI de noche en UTC.
 HOY = hoy().isoformat()
 
 

@@ -123,12 +123,21 @@ def quitar(db: Session, mov: Entrada | Salida, usuario: Usuario) -> Entrada | Sa
     return mov
 
 
-def contenido(mov: Entrada | Salida) -> tuple[bytes, str, str]:
-    """(bytes, tipo MIME, Content-Disposition) para descargar o ver la factura."""
+# Tipos que el navegador puede mostrar sin ejecutar nada. El XML no: un XML con raíz XHTML ejecuta <script>.
+TIPOS_EN_LINEA = {TIPOS["pdf"], TIPOS["jpg"], TIPOS["png"]}
+
+
+def contenido(mov: Entrada | Salida) -> tuple[bytes, str, dict[str, str]]:
+    """(bytes, tipo MIME, encabezados) para descargar o ver la factura."""
     if not mov.factura_clave:
         raise NoEncontrado("El movimiento no tiene factura")
     datos = almacenamiento().leer(mov.factura_clave)
     nombre = mov.factura_nombre or "factura"
     ascii_ = nombre.encode("ascii", "replace").decode().replace('"', "").replace("?", "_")
-    return datos, mov.factura_tipo or "application/octet-stream", \
-        f"inline; filename=\"{ascii_}\"; filename*=UTF-8''{quote(nombre)}"
+    tipo = mov.factura_tipo or "application/octet-stream"
+    modo = "inline" if tipo in TIPOS_EN_LINEA else "attachment"
+    encabezados = {"Content-Disposition": f"{modo}; filename=\"{ascii_}\"; filename*=UTF-8''{quote(nombre)}",
+                   "X-Content-Type-Options": "nosniff"}
+    if modo == "attachment":
+        encabezados["Content-Security-Policy"] = "sandbox"
+    return datos, tipo, encabezados

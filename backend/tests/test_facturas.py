@@ -38,6 +38,7 @@ def test_subir_ver_reemplazar_y_quitar_factura(client, mov, tipo):
     descarga = client.get(f"{ruta}/factura", headers=h)
     assert descarga.status_code == 200 and descarga.content == PDF
     assert descarga.headers["content-type"] == "application/pdf"
+    assert descarga.headers["content-disposition"].startswith("inline;")
     r = ok(_subir(client, h, ruta, XML, "cfdi.xml"))
     assert (r["factura_nombre"], r["factura_tipo"]) == ("cfdi.xml", "application/xml")
     assert client.get(f"{ruta}/factura", headers=h).content == XML
@@ -78,3 +79,15 @@ def test_bitacora_de_facturas(client, mov, admin):
     acciones = [i["accion"] for i in ok(client.get("/bitacora", params={"entidad_id": mov["salida"]["id"]},
                                                    headers=admin[1]))["items"]]
     assert acciones[:2] == ["ELIMINAR_FACTURA", "SUBIR_FACTURA"]
+
+
+def test_xml_se_descarga_sin_mostrarse(client, mov):
+    """Un XML con raíz XHTML ejecutaría <script> si el navegador lo muestra: siempre como descarga, en sandbox."""
+    h = mov["h"]
+    ruta = f"/entradas/{mov['entrada']['id']}"
+    xhtml = b'<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></html>'
+    ok(_subir(client, h, ruta, xhtml, "cfdi.xml"))
+    descarga = client.get(f"{ruta}/factura", headers=h)
+    assert descarga.headers["content-disposition"].startswith("attachment;")
+    assert descarga.headers["content-security-policy"] == "sandbox"
+    assert descarga.headers["x-content-type-options"] == "nosniff"

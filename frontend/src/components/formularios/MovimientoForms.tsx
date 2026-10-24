@@ -159,9 +159,22 @@ function Fijos({ children }: { children: ReactNode }) {
 // ------------------------------------------------------------------ factura (opcional)
 const TIPOS_FACTURA = ".pdf,.xml,.jpg,.jpeg,.png,application/pdf,application/xml,text/xml,image/jpeg,image/png";
 
-/** Abre la factura en otra pestaña (la descarga lleva el token, por eso no es un enlace directo). */
+/** Tipos que se pueden abrir en una pestaña sin ejecutar nada. */
+const TIPOS_VISIBLES = new Set(["application/pdf", "image/png", "image/jpeg"]);
+
+/**
+ * Abre la factura en otra pestaña (la descarga lleva el token, por eso no es un enlace directo).
+ * Un blob: tiene el mismo origen que la app: un XML con raíz XHTML ejecutaría <script> y podría leer el
+ * token. Por eso solo se abren PDF e imágenes, con el tipo fijado aquí; lo demás (XML) se descarga.
+ */
 export async function verFactura(ruta: string, nombre: string | null) {
-  const blob = await api.blob(`${ruta}/factura`);
+  const original = await api.blob(`${ruta}/factura`);
+  const tipo = original.type.split(";")[0].trim().toLowerCase();
+  if (!TIPOS_VISIBLES.has(tipo)) {
+    guardarBlob(new Blob([original], { type: "application/octet-stream" }), nombre ?? "factura");
+    return;
+  }
+  const blob = new Blob([original], { type: tipo });
   const url = URL.createObjectURL(blob);
   const ventana = window.open(url, "_blank");
   if (!ventana) guardarBlob(blob, nombre ?? "factura");
