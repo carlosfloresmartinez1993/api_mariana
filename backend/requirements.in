@@ -1,19 +1,19 @@
 # Dependencias directas del backend (rangos aceptados).
 # NO instalar desde aquí: el archivo con versiones exactas es requirements.txt, que se genera con
 #   uv pip compile requirements.in --universal --python-version 3.13 -o requirements.txt
-fastapi>=0.142
+fastapi>=0.165.0
 uvicorn[standard]>=0.54
-sqlalchemy>=2.1,<2.2
-psycopg[binary]>=3.3
-alembic>=1.20
-pydantic>=2.13
-pydantic-settings>=2.15
-email-validator>=2.3
-python-multipart>=0.0.32
+sqlalchemy>=2.1.9,<2.2
+psycopg[binary]>=3.3.9
+alembic>=1.20.1
+pydantic>=2.14.4
+pydantic-settings>=2.16.3
+email-validator>=2.4.0
+python-multipart>=0.0.34
 bcrypt>=5.0
 PyJWT>=2.15
 slowapi>=0.1.10
 tzdata
 openpyxl>=3.1
-reportlab>=5.0
-boto3>=1.43
+reportlab>=5.1.0
+boto3>=1.44.7
